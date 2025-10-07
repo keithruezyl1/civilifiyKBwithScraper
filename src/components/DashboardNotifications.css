@@ -1,0 +1,18 @@
+.notif-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.4);display:flex;justify-content:flex-end;z-index:1000}
+.notif-flyout-root{pointer-events:auto}
+.notif-panel{width:min(980px,96vw);max-height:70vh;background:#1e2937;position:relative;display:flex;flex-direction:column;padding:24px;box-shadow:0 12px 30px rgba(0,0,0,0.45);border-radius:14px}
+.notif-close{position:absolute;top:10px;right:16px;background:transparent;border:none;color:#fff;font-size:28px;cursor:pointer}
+.notif-content{display:flex;gap:24px;height:100%}
+.notif-left{width:320px;min-width:280px;background:#222f3e;border-radius:10px;padding:20px;color:#cbd5e1}
+.notif-title{font-size:22px;font-weight:700;color:#ff7a59;margin-bottom:14px}
+.notif-scan-btn{display:block;width:100%;padding:14px 16px;background:#ff7a59;color:#1e2937;border:none;border-radius:16px;font-weight:700;cursor:pointer}
+.notif-empty{margin-top:16px;font-size:14px;color:#aab4c3}
+.notif-right{flex:1;overflow:auto;display:flex;flex-direction:column;gap:18px;max-height:56vh}
+.notif-card{background:#0f1722;border-radius:12px;padding:18px 18px 16px 18px;color:#d2dae6;box-shadow:0 2px 0 rgba(0,0,0,0.2)}
+.notif-card-title{font-weight:700;font-size:18px;margin-bottom:10px}
+.notif-card-sub{font-size:14px;color:#9fb0c2;margin-bottom:14px}
+.notif-card-actions{display:flex;gap:14px}
+.notif-action-yes{flex:1;background:#10b981;border:none;color:#0b1320;padding:12px;border-radius:16px;font-weight:800;cursor:pointer}
+.notif-action-no{flex:1;background:#ef4444;border:none;color:#0b1320;padding:12px;border-radius:16px;font-weight:800;cursor:pointer}
+.notif-dropdown{position:absolute;top:40px;right:0;background:#fff;border:1px solid #e5e7eb;border-radius:8px;box-shadow:0 10px 30px rgba(0,0,0,0.15)}
+

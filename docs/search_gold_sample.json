@@ -1,0 +1,65 @@
+[
+  { "query": "Article 3", "filters": { "type": "constitution_provision" }, "ideal_top": [] },
+  { "query": "Article III", "filters": { "type": "constitution_provision" }, "ideal_top": [] },
+  { "query": "Art. 3", "filters": { "type": "constitution_provision" }, "ideal_top": [] },
+  { "query": "Article III Section 1", "filters": { "type": "constitution_provision" }, "ideal_top": [] },
+  { "query": "Art III Sec 1", "filters": { "type": "constitution_provision" }, "ideal_top": [] },
+
+  { "query": "Sec. 5(a) RA 9165", "filters": { "type": "statute_section" }, "ideal_top": [] },
+  { "query": "Section 5(a) Republic Act No. 9165", "filters": { "type": "statute_section" }, "ideal_top": [] },
+  { "query": "RA 9165 sec 5a", "filters": { "type": "statute_section" }, "ideal_top": [] },
+  { "query": "Republic Act 9165 Section 5 (a)", "filters": { "type": "statute_section" }, "ideal_top": [] },
+  { "query": "RA9165 5(a)", "filters": { "type": "statute_section" }, "ideal_top": [] },
+
+  { "query": "B.P. Blg 22", "filters": { "type": "statute_section" }, "ideal_top": [] },
+  { "query": "BP Blg 22", "filters": { "type": "statute_section" }, "ideal_top": [] },
+  { "query": "Batas Pambansa Bilang 22", "filters": { "type": "statute_section" }, "ideal_top": [] },
+  { "query": "BP 22 section 1", "filters": { "type": "statute_section" }, "ideal_top": [] },
+
+  { "query": "Rule 110 Sec 3 Rules of Court", "filters": { "type": "rule_of_court" }, "ideal_top": [] },
+  { "query": "ROC Rule 65", "filters": { "type": "rule_of_court" }, "ideal_top": [] },
+  { "query": "Rules of Court Rule 45", "filters": { "type": "rule_of_court" }, "ideal_top": [] },
+
+  { "query": "NBI clearance", "filters": {}, "ideal_top": [] },
+  { "query": "BIR compromise penalty", "filters": {}, "ideal_top": [] },
+  { "query": "DILG memorandum circular barangay", "filters": {}, "ideal_top": [] },
+  { "query": "LTFRB franchise suspension", "filters": {}, "ideal_top": [] },
+  { "query": "DOTr department order", "filters": {}, "ideal_top": [] },
+  { "query": "DHSUD license to sell", "filters": {}, "ideal_top": [] },
+
+  { "query": "City Ordinance curfew", "filters": { "type": "city_ordinance_section" }, "ideal_top": [] },
+  { "query": "Quezon City Ordinance traffic", "filters": { "type": "city_ordinance_section" }, "ideal_top": [] },
+
+  { "query": "DOJ Circular anti-trafficking", "filters": { "type": "doj_issuance" }, "ideal_top": [] },
+  { "query": "Executive Order quarantine", "filters": { "type": "executive_issuance" }, "ideal_top": [] },
+  { "query": "Agency Circular data privacy", "filters": { "type": "agency_circular" }, "ideal_top": [] },
+
+  { "query": "Anti-Hazing Act Section 4", "filters": { "type": "statute_section" }, "ideal_top": [] },
+  { "query": "Anti-Wiretapping Act", "filters": { "type": "statute_section" }, "ideal_top": [] },
+  { "query": "Anti-Graft and Corrupt Practices", "filters": { "type": "statute_section" }, "ideal_top": [] },
+
+  { "query": "People v Dizon G.R. No. 123456", "filters": {}, "ideal_top": [] },
+  { "query": "G.R. No. 987654 qualified theft", "filters": {}, "ideal_top": [] },
+
+  { "query": "Sec 5 a dangerous drugs", "filters": { "type": "statute_section" }, "ideal_top": [] },
+  { "query": "Section 9 anti-carnapping", "filters": { "type": "statute_section" }, "ideal_top": [] },
+  { "query": "Republic Act 3019 Section 3(e)", "filters": { "type": "statute_section" }, "ideal_top": [] },
+
+  { "query": "Barangay protection order VAWC", "filters": {}, "ideal_top": [] },
+  { "query": "IRR data privacy act", "filters": {}, "ideal_top": [] },
+  { "query": "ROC rule 37 new trial", "filters": { "type": "rule_of_court" }, "ideal_top": [] },
+  { "query": "ROC rule 39 execution", "filters": { "type": "rule_of_court" }, "ideal_top": [] },
+
+  { "query": "Article II Declaration of Principles", "filters": { "type": "constitution_provision" }, "ideal_top": [] },
+  { "query": "Article VII Executive Department", "filters": { "type": "constitution_provision" }, "ideal_top": [] },
+  { "query": "Article XIV Education", "filters": { "type": "constitution_provision" }, "ideal_top": [] },
+
+  { "query": "Sec. 12(a) BP 68 Corporation Code (old)", "filters": { "type": "statute_section" }, "ideal_top": [] },
+  { "query": "Revised Corporation Code section 10", "filters": { "type": "statute_section" }, "ideal_top": [] },
+
+  { "query": "LTFRB MC jeepney modernization", "filters": {}, "ideal_top": [] },
+  { "query": "BIR RR VAT refund", "filters": {}, "ideal_top": [] },
+  { "query": "NBI clearance requirements 2025", "filters": {}, "ideal_top": [] }
+]
+
+

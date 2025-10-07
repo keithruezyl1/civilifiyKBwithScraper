@@ -1,0 +1,429 @@
+/* Toast animations */
+@keyframes slide-in-from-right {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+@keyframes slide-out-to-right {
+  from {
+    transform: translateX(0);
+    opacity: 1;
+  }
+  to {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+}
+
+@keyframes slide-in-from-left {
+  from {
+    transform: translateX(-100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+@keyframes slide-out-to-left {
+  from {
+    transform: translateX(0);
+    opacity: 1;
+  }
+  to {
+    transform: translateX(-100%);
+    opacity: 0;
+  }
+}
+
+@keyframes slide-in-from-top {
+  from {
+    transform: translateY(-100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+@keyframes slide-out-to-top {
+  from {
+    transform: translateY(0);
+    opacity: 1;
+  }
+  to {
+    transform: translateY(-100%);
+    opacity: 0;
+  }
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes fade-out {
+  from {
+    opacity: 1;
+    transform: scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+}
+
+/* Toast component animations */
+.toast-enter {
+  animation: slide-in-from-right 0.3s ease-out;
+}
+
+.toast-exit {
+  animation: slide-out-to-right 0.3s ease-in;
+}
+
+.toast-enter-left {
+  animation: slide-in-from-left 0.3s ease-out;
+}
+
+.toast-exit-left {
+  animation: slide-out-to-left 0.3s ease-in;
+}
+
+.toast-enter-center {
+  animation: fade-in 0.3s ease-out;
+}
+
+.toast-exit-center {
+  animation: fade-out 0.3s ease-in;
+}
+
+/* Match item hover effects */
+.match-item {
+  transition: all 0.2s ease;
+}
+
+.match-item:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+/* Type badge animations */
+.type-badge {
+  transition: all 0.2s ease;
+}
+
+.type-badge:hover {
+  transform: scale(1.05);
+}
+
+/* Citation box styling */
+.citation-box {
+  transition: all 0.2s ease;
+}
+
+.citation-box:hover {
+  background-color: #fef2f2;
+  border-color: #fca5a5;
+}
+
+/* Custom red background classes */
+.bg-red-25 {
+  background-color: #fef2f2;
+}
+
+/* Line clamp utility */
+.line-clamp-2 {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.line-clamp-3 {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* Enhanced match item styling */
+.match-item {
+  position: relative;
+  overflow: hidden;
+}
+
+.match-item::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, #f59e0b, #fbbf24);
+  transform: scaleX(0);
+  transition: transform 0.3s ease;
+}
+
+.match-item:hover::before {
+  transform: scaleX(1);
+}
+
+/* Type badge enhancements */
+.type-badge {
+  position: relative;
+  overflow: hidden;
+}
+
+.type-badge::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.3), transparent);
+  transition: left 0.5s ease;
+}
+
+.type-badge:hover::after {
+  left: 100%;
+}
+
+/* Citation box enhancements */
+.citation-box {
+  position: relative;
+  overflow: hidden;
+}
+
+.citation-box::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 3px;
+  height: 100%;
+  background: #f59e0b;
+  transform: scaleY(0);
+  transition: transform 0.3s ease;
+}
+
+.citation-box:hover::before {
+  transform: scaleY(1);
+}
+
+/* Dark mode specific styling */
+.dark-mode .toast-container {
+  background-color: #1f2937 !important;
+  border-color: #4b5563 !important;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5) !important;
+}
+
+/* Remove grey hover/background for close (X) in dark mode */
+.dark-mode .toast-close {
+  background: transparent !important;
+}
+.dark-mode .toast-close:hover {
+  background: transparent !important;
+}
+
+/* Light mode readability for duplicate matches content */
+.toast-container .duplicate-match-item,
+.toast-container .duplicate-matches-content {
+  background-color: #ffffff; /* white background in light mode */
+}
+.toast-container .duplicate-match-title { color: #111827; }
+.toast-container .duplicate-match-citation { color: #4b5563; }
+
+/* Dark mode keep current contrast */
+.dark-mode .toast-container .duplicate-match-item,
+.dark-mode .toast-container .duplicate-matches-content { background-color: #1f2937; }
+.dark-mode .toast-container .duplicate-match-title { color: #e5e7eb; }
+.dark-mode .toast-container .duplicate-match-citation { color: #9ca3af; }
+
+.dark-mode .match-item:hover {
+  background-color: #374151;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.dark-mode .citation-box:hover {
+  background-color: #374151;
+  border-color: #6b7280;
+}
+
+/* Duplicate Matches Toast Specific Styling */
+.duplicate-matches-content {
+  padding: 16px 20px;
+  margin: 0;
+}
+
+.duplicate-match-item {
+  padding: 12px 0;
+  border-bottom: 1px solid #e5e7eb;
+  transition: all 0.2s ease;
+}
+
+.duplicate-match-item:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.duplicate-match-item:first-child {
+  padding-top: 0;
+}
+
+.duplicate-match-title {
+  font-weight: 600;
+  font-size: 14px;
+  line-height: 1.4;
+  color: #111827;
+  margin-bottom: 4px;
+  word-wrap: break-word;
+}
+
+.duplicate-match-citation {
+  font-size: 12px;
+  line-height: 1.3;
+  color: #6b7280;
+  font-weight: 400;
+  word-wrap: break-word;
+}
+
+.duplicate-matches-footer {
+  margin-top: 16px;
+  padding: 12px 20px 16px 20px;
+  border-top: 1px solid #e5e7eb;
+}
+
+.duplicate-matches-view-all {
+  width: 100%;
+  text-align: center;
+  font-size: 13px;
+  font-weight: 500;
+  color: #d97706;
+  background: none;
+  border: none;
+  padding: 8px 0;
+  cursor: pointer;
+  transition: color 0.2s ease;
+  border-radius: 4px;
+}
+
+.duplicate-matches-view-all:hover {
+  color: #b45309;
+  background-color: #fef3c7;
+}
+
+.duplicate-matches-view-all:focus {
+  outline: none;
+  ring: 2px;
+  ring-color: #fbbf24;
+  ring-offset: 1px;
+}
+
+/* Dark mode for duplicate matches */
+.dark .duplicate-match-item {
+  border-bottom-color: #374151;
+}
+
+.dark .duplicate-match-title {
+  color: #f9fafb !important;
+}
+
+.dark .duplicate-match-citation {
+  color: #9ca3af !important;
+}
+
+.dark .duplicate-matches-footer {
+  border-top-color: #374151;
+}
+
+.dark .duplicate-matches-view-all {
+  color: #f59e0b;
+}
+
+.dark .duplicate-matches-view-all:hover {
+  color: #fbbf24;
+  background-color: #451a03;
+}
+
+/* Force dark mode colors for duplicate matches */
+.dark-mode .duplicate-match-title {
+  color: #f9fafb !important;
+}
+
+.dark-mode .duplicate-match-citation {
+  color: #9ca3af !important;
+}
+
+.dark-mode .duplicate-match-item {
+  border-bottom-color: #374151 !important;
+}
+
+.dark-mode .duplicate-matches-footer {
+  border-top-color: #374151 !important;
+}
+
+/* Responsive adjustments */
+@media (max-width: 640px) {
+  .toast-container {
+    min-width: 320px;
+    max-width: calc(100vw - 2rem);
+    margin: 0 1rem;
+  }
+  
+  .toast-header {
+    padding: 1rem;
+  }
+  
+  .toast-content {
+    padding: 1rem;
+  }
+  
+  .match-item {
+    padding: 0.75rem;
+  }
+  
+  .type-badge {
+    font-size: 0.75rem;
+    padding: 0.25rem 0.5rem;
+  }
+  
+  .citation-box {
+    padding: 0.5rem;
+  }
+
+  .duplicate-matches-content {
+    padding: 12px 16px;
+  }
+
+  .duplicate-match-item {
+    padding: 10px 0;
+  }
+
+  .duplicate-match-title {
+    font-size: 13px;
+  }
+
+  .duplicate-match-citation {
+    font-size: 11px;
+  }
+
+  .duplicate-matches-footer {
+    padding: 10px 16px 12px 16px;
+  }
+}

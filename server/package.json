@@ -1,0 +1,30 @@
+{
+  "name": "kb-vector-server",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node src/setup-db.js && node src/index.js",
+    "dev": "node src/index.js",
+    "build": "echo 'No build step required'",
+    "setup-db": "node src/setup-db.js",
+    "migrate": "node src/migrate-db.js",
+    "reindex": "node src/reindex-embeddings.js"
+  },
+  "dependencies": {
+    "bcrypt": "^5.1.1",
+    "body-parser": "^1.20.2",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "jsdom": "^27.0.0",
+    "jsonwebtoken": "^9.0.2",
+    "node-fetch": "^3.3.2",
+    "openai": "^4.58.1",
+    "pg": "^8.11.3",
+    "zod": "^3.23.8"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

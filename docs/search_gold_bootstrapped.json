@@ -1,0 +1,504 @@
+[
+  {
+    "query": "Article 3",
+    "filters": {
+      "type": "constitution_provision"
+    },
+    "ideal_top": [
+      "CONST-RevisedPenalCode-Art. 336-646867",
+      "CONST-1987Constitution,BillofRights-Article 3, Section 14(2)-663202",
+      "CONST-1987Constitution,BillofRights-Article 3, Section 5-120516"
+    ]
+  },
+  {
+    "query": "Article III",
+    "filters": {
+      "type": "constitution_provision"
+    },
+    "ideal_top": [
+      "CONST-1987PhilippineConstitution–BillofRights-Article III, Section 14-734053",
+      "CONST-1987PhilippineConstitution–BillofRights-Article III, Sec. 13-367017",
+      "CONST-1987PhilippineConstitution–BillofRights-Article III, Section 17-735472"
+    ]
+  },
+  {
+    "query": "Art. 3",
+    "filters": {
+      "type": "constitution_provision"
+    },
+    "ideal_top": [
+      "CONST-RevisedPenalCode-Art. 336-646867",
+      "CONST-1987Constitution,BillofRights-Article 3, Section 14(2)-663202",
+      "CONST-1987Constitution,BillofRights-Article 3, Section 5-120516"
+    ]
+  },
+  {
+    "query": "Article III Section 1",
+    "filters": {
+      "type": "constitution_provision"
+    },
+    "ideal_top": [
+      "CONST-1987Constitution,BillofRights-Article III, Section 1-670979",
+      "CONST-1987PhilippineConstitution–BillofRights-Article III, Sec. 13-367017",
+      "CONST-1987PhilippineConstitution–BillofRights-Article III, Section 17-735472"
+    ]
+  },
+  {
+    "query": "Art III Sec 1",
+    "filters": {
+      "type": "constitution_provision"
+    },
+    "ideal_top": [
+      "CONST-1987Constitution,BillofRights-Article III, Section 1-670979",
+      "CONST-1987PhilippineConstitution–BillofRights-Article III, Sec. 13-367017",
+      "CONST-1987PhilippineConstitution–BillofRights-Article III, Section 17-735472"
+    ]
+  },
+  {
+    "query": "Sec. 5(a) RA 9165",
+    "filters": {
+      "type": "statute_section"
+    },
+    "ideal_top": [
+      "CONST-1987Constitution-Article 2, Section 16-992966",
+      "CONST-1987Constitution-Article 2, Section 9-871884",
+      "CONST-1987Constitution-Article 2, Section 5-840780"
+    ]
+  },
+  {
+    "query": "Section 5(a) Republic Act No. 9165",
+    "filters": {
+      "type": "statute_section"
+    },
+    "ideal_top": [
+      "CONST-1987Constitution-Article 2, Section 5-840780",
+      "CONST-1987Constitution,SocialJusticeandHumanRights–Labor-Article 13, Section 3-281508",
+      "CONST-1987Constitution-Article 2, Section 16-992966"
+    ]
+  },
+  {
+    "query": "RA 9165 sec 5a",
+    "filters": {
+      "type": "statute_section"
+    },
+    "ideal_top": [
+      "CONST-1987Constitution,DeclarationofPrinciplesandStatePolicies-Article 2, Section 1-580825",
+      "CONST-1987Constitution-Article 2, Section 16-992966",
+      "CONST-1987Constitution,Education,ScienceandTechnology,Arts,Culture,andSports-Article 14, Section 1-802857"
+    ]
+  },
+  {
+    "query": "Republic Act 9165 Section 5 (a)",
+    "filters": {
+      "type": "statute_section"
+    },
+    "ideal_top": [
+      "CONST-1987Constitution-Article 2, Section 16-992966",
+      "CONST-1987Constitution-Article 2, Section 9-871884",
+      "CONST-1987Constitution-Article 2, Section 5-840780"
+    ]
+  },
+  {
+    "query": "RA9165 5(a)",
+    "filters": {
+      "type": "statute_section"
+    },
+    "ideal_top": [
+      "CONST-1987Constitution-Article 2, Section 16-992966",
+      "CONST-1987Constitution-Article 2, Section 9-871884",
+      "CONST-1987Constitution,BillofRights-Article 3 Section 6-612824"
+    ]
+  },
+  {
+    "query": "B.P. Blg 22",
+    "filters": {
+      "type": "statute_section"
+    },
+    "ideal_top": [
+      "CONST-1987Constitution,DeclarationofPrinciplesandStatePolicies-Article 2, Section 1-580825",
+      "CONST-1987Constitution-Article 2, Section 16-992966",
+      "CONST-1987PhilippineConstitution–BillofRights-Article III, Section 2-000297"
+    ]
+  },
+  {
+    "query": "BP Blg 22",
+    "filters": {
+      "type": "statute_section"
+    },
+    "ideal_top": [
+      "CONST-1987Constitution,BillofRights-Article 3, Section 14(2)-663202",
+      "CONST-1987Constitution-Article 2, Section 9-871884",
+      "CONST-1987Constitution-Article 2, Section 16-992966"
+    ]
+  },
+  {
+    "query": "Batas Pambansa Bilang 22",
+    "filters": {
+      "type": "statute_section"
+    },
+    "ideal_top": [
+      "CONST-1987Constitution-Article 2, Section 16-992966",
+      "CONST-1987Constitution,BillofRights-Article 3, Section 14(2)-663202",
+      "CONST-1987Constitution-Article 2, Section 9-871884"
+    ]
+  },
+  {
+    "query": "BP 22 section 1",
+    "filters": {
+      "type": "statute_section"
+    },
+    "ideal_top": [
+      "CONST-1987Constitution,BillofRights-Article 3, Section 14(2)-663202",
+      "CONST-1987Constitution-Article 2, Section 9-871884",
+      "CONST-1987Constitution-Article 2, Section 16-992966"
+    ]
+  },
+  {
+    "query": "Rule 110 Sec 3 Rules of Court",
+    "filters": {
+      "type": "rule_of_court"
+    },
+    "ideal_top": [
+      "CONST-1987Constitution,BillofRights-Article III, Section 10-384811",
+      "CONST-1987Constitution,BillofRights-Article III, Section 1-670979",
+      "CONST-1987PhilippineConstitution–BillofRights-Article III, Section 3-818227"
+    ]
+  },
+  {
+    "query": "ROC Rule 65",
+    "filters": {
+      "type": "rule_of_court"
+    },
+    "ideal_top": [
+      "CONST-1987Constitution,BillofRights-Article 3, Section 5-120516",
+      "CONST-1987Constitution-Article 2, Section 5-840780",
+      "CONST-1987Constitution,BillofRights-Article III, Section 10-384811"
+    ]
+  },
+  {
+    "query": "Rules of Court Rule 45",
+    "filters": {
+      "type": "rule_of_court"
+    },
+    "ideal_top": [
+      "CONST-1987Constitution,BillofRights-Article 3, Section 5-120516",
+      "CONST-1987Constitution-Article 2, Section 5-840780",
+      "CONST-1987Constitution,BillofRights-Article III, Section 10-384811"
+    ]
+  },
+  {
+    "query": "NBI clearance",
+    "filters": {},
+    "ideal_top": [
+      "CONST-1987Constitution,BillofRights-Article 3, Section 5-120516",
+      "CONST-1987Constitution,DeclarationofPrinciplesandStatePolicies-Article 2, Section 1-580825",
+      "CONST-1987Constitution,BillofRights-Article III, Section 1-670979"
+    ]
+  },
+  {
+    "query": "BIR compromise penalty",
+    "filters": {},
+    "ideal_top": [
+      "CONST-1987Constitution,DeclarationofPrinciplesandStatePolicies-Article 2, Section 1-580825",
+      "CONST-1987Constitution,BillofRights-Article 3, Section 5-120516",
+      "CONST-1987Constitution,BillofRights-Article III, Section 1-670979"
+    ]
+  },
+  {
+    "query": "DILG memorandum circular barangay",
+    "filters": {},
+    "ideal_top": [
+      "CONST-1987Constitution,DeclarationofPrinciplesandStatePolicies-Article 2, Section 1-580825",
+      "CONST-1987Constitution,BillofRights-Article III, Section 1-670979",
+      "CONST-1987Constitution,Education,ScienceandTechnology,Arts,Culture,andSports-Article 14, Section 1-802857"
+    ]
+  },
+  {
+    "query": "LTFRB franchise suspension",
+    "filters": {},
+    "ideal_top": [
+      "CONST-1987Constitution,Education,ScienceandTechnology,Arts,Culture,andSports-Article 14, Section 1-802857",
+      "CONST-1987Constitution,BillofRights-Article III, Section 1-670979",
+      "CONST-1987Constitution,DeclarationofPrinciplesandStatePolicies-Article 2, Section 1-580825"
+    ]
+  },
+  {
+    "query": "DOTr department order",
+    "filters": {},
+    "ideal_top": [
+      "CONST-1987Constitution,DeclarationofPrinciplesandStatePolicies-Article 2, Section 1-580825",
+      "CONST-1987Constitution,BillofRights-Article III, Section 1-670979",
+      "CONST-1987Constitution,BillofRights-Article 3, Section 14(2)-663202"
+    ]
+  },
+  {
+    "query": "DHSUD license to sell",
+    "filters": {},
+    "ideal_top": [
+      "CONST-1987Constitution-Article 2, Section 5-840780",
+      "CONST-1987Constitution,SocialJusticeandHumanRights–Labor-Article 13, Section 3-281508",
+      "CONST-1987Constitution,BillofRights-Article III, Section 1-670979"
+    ]
+  },
+  {
+    "query": "City Ordinance curfew",
+    "filters": {
+      "type": "city_ordinance_section"
+    },
+    "ideal_top": [
+      "CONST-1987Constitution,BillofRights-Article III, Section 1-670979",
+      "CONST-1987Constitution,Education,ScienceandTechnology,Arts,Culture,andSports-Article 14, Section 1-802857",
+      "CONST-1987Constitution,DeclarationofPrinciplesandStatePolicies-Article 2, Section 1-580825"
+    ]
+  },
+  {
+    "query": "Quezon City Ordinance traffic",
+    "filters": {
+      "type": "city_ordinance_section"
+    },
+    "ideal_top": [
+      "CONST-1987Constitution,Education,ScienceandTechnology,Arts,Culture,andSports-Article 14, Section 1-802857",
+      "CONST-1987Constitution,BillofRights-Article III, Section 1-670979",
+      "CONST-1987Constitution,DeclarationofPrinciplesandStatePolicies-Article 2, Section 1-580825"
+    ]
+  },
+  {
+    "query": "DOJ Circular anti-trafficking",
+    "filters": {
+      "type": "doj_issuance"
+    },
+    "ideal_top": [
+      "CONST-1987Constitution,DeclarationofPrinciplesandStatePolicies-Article 2, Section 1-580825",
+      "CONST-1987Constitution,BillofRights-Article III, Section 1-670979",
+      "CONST-1987Constitution,Education,ScienceandTechnology,Arts,Culture,andSports-Article 14, Section 1-802857"
+    ]
+  },
+  {
+    "query": "Executive Order quarantine",
+    "filters": {
+      "type": "executive_issuance"
+    },
+    "ideal_top": [
+      "CONST-1987Constitution,DeclarationofPrinciplesandStatePolicies-Article 2, Section 1-580825",
+      "CONST-1987Constitution,BillofRights-Article III, Section 1-670979",
+      "CONST-1987Constitution,Education,ScienceandTechnology,Arts,Culture,andSports-Article 14, Section 1-802857"
+    ]
+  },
+  {
+    "query": "Agency Circular data privacy",
+    "filters": {
+      "type": "agency_circular"
+    },
+    "ideal_top": [
+      "CONST-1987Constitution,BillofRights-Article 3, Section 14(2)-663202",
+      "CONST-1987Constitution-Article 2, Section 9-871884",
+      "CONST-1987Constitution,SocialJusticeandHumanRights–Labor-Article 13, Section 3-281508"
+    ]
+  },
+  {
+    "query": "Anti-Hazing Act Section 4",
+    "filters": {
+      "type": "statute_section"
+    },
+    "ideal_top": [
+      "CONST-1987Constitution,BillofRights-Article 3, Section 14(2)-663202",
+      "CONST-1987PhilippineConstitution–BillofRights-Article III, Section 14-734053",
+      "CONST-1987Constitution,Education,ScienceandTechnology,Arts,Culture,andSports-Article 14, Section 1-802857"
+    ]
+  },
+  {
+    "query": "Anti-Wiretapping Act",
+    "filters": {
+      "type": "statute_section"
+    },
+    "ideal_top": [
+      "CONST-1987Constitution,DeclarationofPrinciplesandStatePolicies-Article 2, Section 1-580825",
+      "CONST-1987Constitution,Education,ScienceandTechnology,Arts,Culture,andSports-Article 14, Section 1-802857",
+      "CONST-1987Constitution,BillofRights-Article 3, Section 14(2)-663202"
+    ]
+  },
+  {
+    "query": "Anti-Graft and Corrupt Practices",
+    "filters": {
+      "type": "statute_section"
+    },
+    "ideal_top": [
+      "CONST-1987Constitution,SocialJusticeandHumanRights–Labor-Article 13, Section 3-281508",
+      "CONST-1987Constitution,BillofRights-Article 3, Section 14(2)-663202",
+      "CONST-1987Constitution-Article 2, Section 9-871884"
+    ]
+  },
+  {
+    "query": "People v Dizon G.R. No. 123456",
+    "filters": {},
+    "ideal_top": [
+      "CONST-1987Constitution,BillofRights-Article 3, Section 5-120516",
+      "CONST-1987Constitution-Article 2, Section 5-840780",
+      "CONST-1987Constitution-Article 2, Section 4-595513"
+    ]
+  },
+  {
+    "query": "G.R. No. 987654 qualified theft",
+    "filters": {},
+    "ideal_top": [
+      "CONST-PhilippineConstitution,BillofRights-Art. III, Sec. 4-084134",
+      "CONST-1987Constitution-Article 2, Section 9-871884",
+      "CONST-1987Constitution,BillofRights-Article 3, Section 7-157121"
+    ]
+  },
+  {
+    "query": "Sec 5 a dangerous drugs",
+    "filters": {
+      "type": "statute_section"
+    },
+    "ideal_top": [
+      "CONST-1987Constitution,BillofRights-Article 3, Section 14(2)-663202",
+      "CONST-1987Constitution-Article 2, Section 16-992966",
+      "CONST-1987Constitution,SocialJusticeandHumanRights–Labor-Article 13, Section 3-281508"
+    ]
+  },
+  {
+    "query": "Section 9 anti-carnapping",
+    "filters": {
+      "type": "statute_section"
+    },
+    "ideal_top": [
+      "CONST-1987Constitution-Article 2, Section 9-871884",
+      "CONST-1987Constitution,DeclarationofPrinciplesandStatePolicies-Article 2, Section 1-580825",
+      "CONST-1987Constitution,Education,ScienceandTechnology,Arts,Culture,andSports-Article 14, Section 1-802857"
+    ]
+  },
+  {
+    "query": "Republic Act 3019 Section 3(e)",
+    "filters": {
+      "type": "statute_section"
+    },
+    "ideal_top": [
+      "CONST-1987Constitution,SocialJusticeandHumanRights–Labor-Article 13, Section 3-281508",
+      "CONST-1987PhilippineConstitution–BillofRights-Article III, Section 14-734053",
+      "CONST-1987PhilippineConstitution–BillofRights-Art. III, Sec. 12-617772"
+    ]
+  },
+  {
+    "query": "Barangay protection order VAWC",
+    "filters": {},
+    "ideal_top": [
+      "CONST-1987Constitution-Article 2, Section 9-871884",
+      "CONST-1987Constitution-Article 2, Section 16-992966",
+      "CONST-1987Constitution-Article 2, Section 5-840780"
+    ]
+  },
+  {
+    "query": "IRR data privacy act",
+    "filters": {},
+    "ideal_top": [
+      "CONST-1987Constitution,DeclarationofPrinciplesandStatePolicies-Article 2, Section 1-580825",
+      "CONST-1987Constitution,Education,ScienceandTechnology,Arts,Culture,andSports-Article 14, Section 1-802857",
+      "CONST-1987Constitution-Article I-265574"
+    ]
+  },
+  {
+    "query": "ROC rule 37 new trial",
+    "filters": {
+      "type": "rule_of_court"
+    },
+    "ideal_top": [
+      "CONST-1987Constitution,BillofRights-Article III, Section 1-670979",
+      "CONST-1987Constitution,SocialJusticeandHumanRights–Labor-Article 13, Section 3-281508",
+      "CONST-1987Constitution-Article 2, Section 9-871884"
+    ]
+  },
+  {
+    "query": "ROC rule 39 execution",
+    "filters": {
+      "type": "rule_of_court"
+    },
+    "ideal_top": [
+      "CONST-1987Constitution,BillofRights-Article III, Section 1-670979",
+      "CONST-1987Constitution,BillofRights-Article III, Section 10-384811",
+      "CONST-1987Constitution,BillofRights-Article 3, Section 7-403156"
+    ]
+  },
+  {
+    "query": "Article II Declaration of Principles",
+    "filters": {
+      "type": "constitution_provision"
+    },
+    "ideal_top": [
+      "CONST-1987Constitution,DeclarationofPrinciplesandStatePolicies-Article 2, Section 1-580825",
+      "CONST-1987Constitution-Article 2, Section 9-871884",
+      "CONST-1987Constitution-Article 2, Section 16-992966"
+    ]
+  },
+  {
+    "query": "Article VII Executive Department",
+    "filters": {
+      "type": "constitution_provision"
+    },
+    "ideal_top": [
+      "CONST-1987Constitution,Education,ScienceandTechnology,Arts,Culture,andSports-Article 14, Section 1-802857",
+      "CONST-1987Constitution-Article 2, Section 16-992966",
+      "CONST-1987Constitution,DeclarationofPrinciplesandStatePolicies-Article 2, Section 1-580825"
+    ]
+  },
+  {
+    "query": "Article XIV Education",
+    "filters": {
+      "type": "constitution_provision"
+    },
+    "ideal_top": [
+      "CONST-1987Constitution,BillofRights-Article 3, Section 14(2)-663202",
+      "CONST-1987Constitution,Education,ScienceandTechnology,Arts,Culture,andSports-Article 14, Section 1-802857",
+      "CONST-1987PhilippineConstitution–BillofRights-Article III, Section 14-734053"
+    ]
+  },
+  {
+    "query": "Sec. 12(a) BP 68 Corporation Code (old)",
+    "filters": {
+      "type": "statute_section"
+    },
+    "ideal_top": [
+      "CONST-1987Constitution,BillofRights-Article 3, Section 14(2)-663202",
+      "CONST-1987Constitution-Article 2, Section 9-871884",
+      "CONST-1987Constitution-Article 2, Section 16-992966"
+    ]
+  },
+  {
+    "query": "Revised Corporation Code section 10",
+    "filters": {
+      "type": "statute_section"
+    },
+    "ideal_top": [
+      "CONST-1987Constitution,Education,ScienceandTechnology,Arts,Culture,andSports-Article 14, Section 1-802857",
+      "CONST-1987Constitution,DeclarationofPrinciplesandStatePolicies-Article 2, Section 1-580825",
+      "CONST-1987Constitution,BillofRights-Article III, Section 1-670979"
+    ]
+  },
+  {
+    "query": "LTFRB MC jeepney modernization",
+    "filters": {},
+    "ideal_top": [
+      "CONST-1987Constitution,Education,ScienceandTechnology,Arts,Culture,andSports-Article 14, Section 1-802857",
+      "CONST-1987Constitution,BillofRights-Article III, Section 1-670979",
+      "CONST-1987Constitution,DeclarationofPrinciplesandStatePolicies-Article 2, Section 1-580825"
+    ]
+  },
+  {
+    "query": "BIR RR VAT refund",
+    "filters": {},
+    "ideal_top": [
+      "CONST-1987Constitution,DeclarationofPrinciplesandStatePolicies-Article 2, Section 1-580825",
+      "CONST-1987Constitution-Article I-265574",
+      "CONST-1987Constitution,BillofRights-Article 3, Section 5-120516"
+    ]
+  },
+  {
+    "query": "NBI clearance requirements 2025",
+    "filters": {},
+    "ideal_top": [
+      "CONST-1987Constitution,DeclarationofPrinciplesandStatePolicies-Article 2, Section 1-580825",
+      "CONST-1987Constitution,BillofRights-Article 3, Section 5-120516",
+      "CONST-1987Constitution-Article I-265574"
+    ]
+  }
+]

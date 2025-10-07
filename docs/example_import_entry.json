@@ -1,0 +1,27 @@
+{
+  "entry_id": "RPC-Art308-123456",
+  "title": "Theft of Property",
+  "type": "statute_section",
+  "law_family": "RPC",
+  "section_id": "Art. 308",
+  "citation": "Revised Penal Code, Article 308",
+  "effective_date": "1930-12-08",
+  "jurisdiction": "Philippines",
+  "tags": ["theft", "property", "criminal law"],
+  "description": "Who are guilty of theft",
+  "content": "Who are guilty of theft. — Theft is committed by any person who, with intent to gain but without violence against or intimidation of persons nor force upon things, shall take personal property of another without the latter's consent.",
+  "legal_bases": [
+    "Revised Penal Code, Article 308"
+  ],
+  "related_sections": [
+    "Art. 309 - Penalties for theft",
+    "Art. 310 - Qualified theft"
+  ],
+  "prescriptive_period": {
+    "value": 10,
+    "unit": "years"
+  },
+  "created_by": 1,
+  "created_by_name": "Test User",
+  "verified": false
+}

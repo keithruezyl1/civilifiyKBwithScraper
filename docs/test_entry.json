@@ -1,0 +1,73 @@
+[
+  {
+    "entry_id": "TEST-STATUTE-001",
+    "type": "statute_section",
+    "title": "Test Statute Section",
+    "jurisdiction": "PH",
+    "law_family": "Test Law",
+    "section_id": "Sec. 1",
+    "canonical_citation": "Test Law, Sec. 1",
+    "status": "active",
+    "effective_date": "2024-01-01",
+    "summary": "This is a test entry for validating the import functionality.",
+    "text": "This is the legal text for the test statute section. It contains the substance of the law being referenced.",
+    "source_urls": [
+      "https://www.example.com/test-law"
+    ],
+    "tags": ["test", "validation", "import"],
+    "last_reviewed": "2024-01-15",
+    "visibility": {
+      "gli": true,
+      "cpa": false
+    },
+    "offline": {
+      "pack_include": false
+    },
+    "elements": [
+      "Test element 1",
+      "Test element 2"
+    ],
+    "penalties": [
+      "Test penalty 1",
+      "Test penalty 2"
+    ],
+    "legal_bases": [
+      "Test Law",
+      "Constitution"
+    ]
+  },
+  {
+    "entry_id": "TEST-RIGHTS-001",
+    "type": "rights_advisory",
+    "title": "Test Rights Advisory",
+    "jurisdiction": "PH",
+    "law_family": "1987 Constitution",
+    "canonical_citation": "1987 Constitution, Art. III, Sec. 12",
+    "status": "active",
+    "effective_date": "1987-02-02",
+    "summary": "This is a test rights advisory entry for validating the import functionality.",
+    "text": "This is the legal text for the test rights advisory. It explains the rights that apply in certain situations.",
+    "source_urls": [
+      "https://www.officialgazette.gov.ph/constitutions/1987-constitution/"
+    ],
+    "tags": ["test", "rights", "constitution"],
+    "last_reviewed": "2024-01-15",
+    "visibility": {
+      "gli": true,
+      "cpa": true
+    },
+    "offline": {
+      "pack_include": true,
+      "pack_category": "rights",
+      "pack_priority": "1"
+    },
+    "rights_scope": "arrest",
+    "advice_points": [
+      "Test advice point 1",
+      "Test advice point 2"
+    ],
+    "legal_bases": [
+      "1987 Constitution, Art. III, Sec. 12"
+    ]
+  }
+]
