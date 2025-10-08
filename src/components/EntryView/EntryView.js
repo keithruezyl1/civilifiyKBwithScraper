@@ -99,7 +99,7 @@ const EntryView = ({ entry, onEdit, onDelete, onExport, teamMemberNames = {} }) 
   };
 
   const renderLegalBases = (legalBases) => {
-    if (!legalBases || legalBases.length === 0) return null;
+    if (!legalBases || !Array.isArray(legalBases) || legalBases.length === 0) return null;
     
     return (
               <div className="field-group">
@@ -579,12 +579,7 @@ const EntryView = ({ entry, onEdit, onDelete, onExport, teamMemberNames = {} }) 
         );
 
       case 'constitution_provision':
-        return (
-          <div className="type-specific-fields">
-            {renderArrayFieldStructured('topics', currentEntry.topics, 'Topics')}
-            {renderArrayFieldStructured('jurisprudence', currentEntry.jurisprudence, 'Jurisprudence')}
-          </div>
-        );
+        return null; // Topics and Jurisprudence are already shown in comprehensive enrichment sections above
 
       default:
         return (
@@ -658,22 +653,8 @@ const EntryView = ({ entry, onEdit, onDelete, onExport, teamMemberNames = {} }) 
             <h3>Basic Information</h3>
             <div className="info-grid">
               <div className="info-item">
-                <span className="label">Entry created by:</span>
-                <span className="value">{getTeamMemberName(currentEntry.team_member_id)}</span>
-              </div>
-              <div className="info-item">
                 <span className="label">Visibility:</span>
-                <span className="value">
-                  {(() => {
-                    const v = currentEntry.visibility;
-                    if (!v) return 'GLI';
-                    const gli = typeof v === 'object' ? v.gli !== false : true;
-                    const cpa = typeof v === 'object' ? v.cpa === true : false;
-                    if (gli && cpa) return 'GLI & CPA';
-                    if (cpa) return 'CPA';
-                    return 'GLI';
-                  })()}
-                </span>
+                <span className="value">GLI & CPA</span>
               </div>
               <div className="info-item">
                 <span className="label">Jurisdiction:</span>
@@ -681,7 +662,7 @@ const EntryView = ({ entry, onEdit, onDelete, onExport, teamMemberNames = {} }) 
               </div>
               <div className="info-item">
                 <span className="label">Law Family:</span>
-                <span className="value">{currentEntry.law_family}</span>
+                <span className="value">{currentEntry.law_family ? currentEntry.law_family.charAt(0).toUpperCase() + currentEntry.law_family.slice(1).replace(/_/g, ' ') : 'Not specified'}</span>
               </div>
               {currentEntry.section_id && (
                 <div className="info-item">
@@ -723,73 +704,33 @@ const EntryView = ({ entry, onEdit, onDelete, onExport, teamMemberNames = {} }) 
             </div>
           </div>
 
-          {/* Last Reviewed Section */}
-          <div className="entry-section">
-            <h3>Last Reviewed</h3>
-            <div className="info-grid">
-              <div className="info-item">
-                <span className="label">Last Reviewed Date:</span>
-                <span className="value">
-                  {currentEntry.verified_at
-                    ? formatDate(currentEntry.verified_at)
-                    : (currentEntry.last_reviewed ? formatDate(currentEntry.last_reviewed) : 'Not reviewed')}
-                </span>
-              </div>
-              <div className="info-item">
-                <span className="label">Verification Status:</span>
-                <span className="value">
-                  {currentEntry.verified ? (
-                    <div className="verification-status">
-                      <span className="verified-badge">Verified</span>
-                      {/* Only P3 and P5 can see verification buttons */}
-                      {user && ((user.personId === 'P3' || user.personId === 'P5' || user.person_id === 'P3' || user.person_id === 'P5')) && (
-                        <button
-                          onClick={handleReverify}
-                          disabled={isVerifying}
-                          className="btn-reverify"
-                          title="Reset verification status"
-                        >
-                          {isVerifying ? 'Processing...' : 'Re-verify'}
-                        </button>
-                      )}
-                    </div>
-                  ) : (
-                    <div className="verification-status">
-                      <span className="unverified-badge">Not Verified</span>
-                      {/* Only P3 and P5 can see verification buttons */}
-                      {user && ((user.personId === 'P3' || user.personId === 'P5' || user.person_id === 'P3' || user.person_id === 'P5')) && (
-                        <button
-                          onClick={handleVerify}
-                          disabled={isVerifying}
-                          className="btn-verify"
-                          title="Mark entry as verified"
-                        >
-                          {isVerifying ? 'Processing...' : 'Verify'}
-                        </button>
-                      )}
-                    </div>
-                  )}
-                </span>
-              </div>
-            </div>
-          </div>
 
           {/* Source URLs */}
           {currentEntry.source_urls && currentEntry.source_urls.length > 0 && (
             <div className="entry-section">
               <h3>Source URLs</h3>
               <div className="source-urls">
-                {currentEntry.source_urls.map((url, index) => (
+                {currentEntry.source_urls.map((url, index) => {
+                  // Clean up URLs by removing "unknown" parts and malformed anchors
+                  let cleanUrl = url;
+                  if (typeof url === 'string') {
+                    // Remove malformed anchors like "#artunknown" or "#ordinance#artunknown"
+                    cleanUrl = url.replace(/#artunknown/g, '').replace(/#ordinance#artunknown/g, '#ordinance');
+                    // If URL ends with just "#", remove it
+                    cleanUrl = cleanUrl.replace(/#$/, '');
+                  }
+                  return (
                   <a
                     key={index}
-                    href={url}
+                      href={cleanUrl}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="source-url"
                   >
-                    {url}
+                      {cleanUrl}
                   </a>
-                ))}
+                  );
+                })}
               </div>
             </div>
           )}
@@ -799,14 +740,6 @@ const EntryView = ({ entry, onEdit, onDelete, onExport, teamMemberNames = {} }) 
             <div className="entry-section">
               <h3>Summary</h3>
               <div className="summary-text">{currentEntry.summary}</div>
-            </div>
-          )}
-
-          {/* Full Text Content */}
-          {currentEntry.text && (
-            <div className="entry-section">
-              <h3>Full Text Content</h3>
-              <div className="text-content">{currentEntry.text}</div>
             </div>
           )}
 
@@ -822,52 +755,286 @@ const EntryView = ({ entry, onEdit, onDelete, onExport, teamMemberNames = {} }) 
             </div>
           )}
 
-          {/* Type-Specific Information */}
+          {/* Key Concepts */}
+          {currentEntry.key_concepts && currentEntry.key_concepts.length > 0 && (
+            <div className="entry-section">
+              <h3>Key Concepts</h3>
+              <div className="tags-list">
+                {currentEntry.key_concepts.map(concept => (
+                  <span key={concept} className="tag tag-concept">{concept}</span>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Legal Analysis */}
+          <div className="entry-section">
+            <h3>Legal Analysis</h3>
+            <div className="info-grid">
+              {currentEntry.applicability && (
+                <div className="info-item">
+                  <span className="label">Applicability:</span>
+                  <span className="value">{currentEntry.applicability}</span>
+                </div>
+              )}
+              {currentEntry.penalties && (
+                <div className="info-item">
+                  <span className="label">Penalties:</span>
+                  <span className="value">{currentEntry.penalties}</span>
+                </div>
+              )}
+              {currentEntry.defenses && (
+                <div className="info-item">
+                  <span className="label">Defenses:</span>
+                  <span className="value">{currentEntry.defenses}</span>
+                </div>
+              )}
+              {currentEntry.time_limits && (
+                <div className="info-item">
+                  <span className="label">Time Limits:</span>
+                  <span className="value">{currentEntry.time_limits}</span>
+                </div>
+              )}
+              {currentEntry.required_forms && (
+                <div className="info-item">
+                  <span className="label">Required Forms:</span>
+                  <span className="value">{currentEntry.required_forms}</span>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Legal Elements */}
+          {currentEntry.elements && (
+            <div className="entry-section">
+              <h3>Legal Elements</h3>
+              <div className="text-content">{currentEntry.elements}</div>
+            </div>
+          )}
+
+          {/* Triggers */}
+          {currentEntry.triggers && (
+            <div className="entry-section">
+              <h3>Triggers</h3>
+              <div className="text-content">{currentEntry.triggers}</div>
+            </div>
+          )}
+
+          {/* Violation Information */}
+          {(currentEntry.violation_code || currentEntry.violation_name) && (
+            <div className="entry-section">
+              <h3>Violation Information</h3>
+              <div className="info-grid">
+                {currentEntry.violation_code && (
+                  <div className="info-item">
+                    <span className="label">Violation Code:</span>
+                    <span className="value">{currentEntry.violation_code}</span>
+                  </div>
+                )}
+                {currentEntry.violation_name && (
+                  <div className="info-item">
+                    <span className="label">Violation Name:</span>
+                    <span className="value">{currentEntry.violation_name}</span>
+                  </div>
+                )}
+                {currentEntry.fine_schedule && (
+                  <div className="info-item">
+                    <span className="label">Fine Schedule:</span>
+                    <span className="value">{currentEntry.fine_schedule}</span>
+                  </div>
+                )}
+                {currentEntry.license_action && (
+                  <div className="info-item">
+                    <span className="label">License Action:</span>
+                    <span className="value">{currentEntry.license_action}</span>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Enforcement Process */}
+          {(currentEntry.apprehension_flow || currentEntry.incident) && (
+            <div className="entry-section">
+              <h3>Enforcement Process</h3>
+              <div className="info-grid">
+                {currentEntry.apprehension_flow && (
+                  <div className="info-item">
+                    <span className="label">Apprehension Flow:</span>
+                    <span className="value">{currentEntry.apprehension_flow}</span>
+                  </div>
+                )}
+                {currentEntry.incident && (
+                  <div className="info-item">
+                    <span className="label">Incident Definition:</span>
+                    <span className="value">{currentEntry.incident}</span>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Process Information */}
+          {(currentEntry.phases || currentEntry.forms || currentEntry.handoff) && (
+            <div className="entry-section">
+              <h3>Process Information</h3>
+              <div className="info-grid">
+                {currentEntry.phases && (
+                  <div className="info-item">
+                    <span className="label">Phases:</span>
+                    <span className="value">
+                      {(() => {
+                        if (typeof currentEntry.phases === 'string') {
+                          return currentEntry.phases;
+                        } else if (Array.isArray(currentEntry.phases)) {
+                          return currentEntry.phases.join(', ');
+                        } else if (typeof currentEntry.phases === 'object') {
+                          return JSON.stringify(currentEntry.phases).replace(/[{}"]/g, '').replace(/,/g, ', ');
+                        }
+                        return currentEntry.phases;
+                      })()}
+                    </span>
+                  </div>
+                )}
+                {currentEntry.forms && (
+                  <div className="info-item">
+                    <span className="label">Forms:</span>
+                    <span className="value">
+                      {(() => {
+                        if (typeof currentEntry.forms === 'string') {
+                          return currentEntry.forms;
+                        } else if (Array.isArray(currentEntry.forms)) {
+                          return currentEntry.forms.join(', ');
+                        } else if (typeof currentEntry.forms === 'object') {
+                          return JSON.stringify(currentEntry.forms).replace(/[{}"]/g, '').replace(/,/g, ', ');
+                        }
+                        return currentEntry.forms;
+                      })()}
+                    </span>
+                  </div>
+                )}
+                {currentEntry.handoff && (
+                  <div className="info-item">
+                    <span className="label">Handoff Procedures:</span>
+                    <span className="value">
+                      {(() => {
+                        if (typeof currentEntry.handoff === 'string') {
+                          return currentEntry.handoff;
+                        } else if (Array.isArray(currentEntry.handoff)) {
+                          return currentEntry.handoff.join(', ');
+                        } else if (typeof currentEntry.handoff === 'object') {
+                          return JSON.stringify(currentEntry.handoff).replace(/[{}"]/g, '').replace(/,/g, ', ');
+                        }
+                        return currentEntry.handoff;
+                      })()}
+                    </span>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Rights and Protections */}
+          {(currentEntry.rights_callouts || currentEntry.rights_scope || currentEntry.advice_points) && (
+            <div className="entry-section">
+              <h3>Rights and Protections</h3>
+              <div className="info-grid">
+                {currentEntry.rights_callouts && (
+                  <div className="info-item">
+                    <span className="label">Rights Callouts:</span>
+                    <span className="value">{currentEntry.rights_callouts}</span>
+                  </div>
+                )}
+                {currentEntry.rights_scope && (
+                  <div className="info-item">
+                    <span className="label">Rights Scope:</span>
+                    <span className="value">{currentEntry.rights_scope}</span>
+                  </div>
+                )}
+                {currentEntry.advice_points && (
+                  <div className="info-item">
+                    <span className="label">Advice Points:</span>
+                    <span className="value">{currentEntry.advice_points}</span>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Legal Context */}
+          {(currentEntry.jurisprudence || currentEntry.legal_bases) && (
+            <div className="entry-section">
+              <h3>Legal Context</h3>
+              <div className="info-grid">
+                {currentEntry.jurisprudence && (
+                  <div className="info-item">
+                    <span className="label">Jurisprudence:</span>
+                    <span className="value">{currentEntry.jurisprudence}</span>
+                  </div>
+                )}
+                {currentEntry.legal_bases && (
+                  <div className="info-item">
+                    <span className="label">Legal Bases:</span>
+                    <span className="value">{currentEntry.legal_bases}</span>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Full Text Content */}
+          {currentEntry.text && (
+            <div className="entry-section">
+              <h3>Full Text Content</h3>
+              <div className="text-content">{currentEntry.text}</div>
+            </div>
+          )}
+
+          {/* Type-Specific Information - only show if there's content */}
+          {renderTypeSpecificFields() && (
           <div className="entry-section">
             <h3>{entryType ? entryType.label : 'Entry'} Details</h3>
             {renderTypeSpecificFields()}
           </div>
+          )}
 
-          {/* Relations - always visible */}
+          {/* Relations - neutral labels, clickable if resolvable, otherwise toast */}
+          {(renderLegalBases(currentEntry.legal_bases) || (currentEntry.related_sections && Array.isArray(currentEntry.related_sections) && currentEntry.related_sections.length > 0)) && (
           <div className="entry-section">
             <h3>Relations</h3>
-            {renderLegalBases(currentEntry.legal_bases) || (
-              <div className="field-group"><h4>Legal Bases</h4><div className="empty-field">Empty</div></div>
-            )}
+              {renderLegalBases(currentEntry.legal_bases)}
+              {currentEntry.related_sections && Array.isArray(currentEntry.related_sections) && currentEntry.related_sections.length > 0 && (
                           <div className="field-group">
                 <h4>Related Sections</h4>
-                {currentEntry.related_sections && currentEntry.related_sections.length > 0 ? (
                   <div className="related-sections-grid">
                     {currentEntry.related_sections.map((rel, idx) => (
                       <div
                         key={idx}
-                        className={`legal-basis-card ${rel?.type === 'internal' ? 'clickable' : ''}`}
+                        className={`legal-basis-card clickable`}
                         onClick={async () => {
-                          if (rel?.type === 'internal' && (rel?.entry_id || rel?.title)) {
-                            const entryId = rel.entry_id;
-                            if (entryId) {
+                          const entryId = rel?.entry_id;
                               try {
+                            if (entryId) {
                                 const target = await fetchEntryById(entryId);
                                 if (target) {
                                   window.dispatchEvent(new CustomEvent('open-entry-detail', { detail: { entry: { ...target, id: target.entry_id }, entryId } }));
-                                }
-                              } catch {}
+                                return;
+                              }
                             }
-                          }
+                          } catch {}
+                          // Fallback toast if not resolvable
+                          try {
+                            const evt = new CustomEvent('toast', { detail: { type: 'info', message: 'This entry is not in the KB yet', duration: 2000 } });
+                            window.dispatchEvent(evt);
+                          } catch {}
                         }}
                       >
                         <div className="basis-header">
-                          <span className={`basis-type-pill ${rel?.type || 'unknown'}`}>
-                            {rel?.type === 'internal' ? 'Internal' : 'External'}
-                          </span>
+                          {/* Neutral type: no internal/external badge */}
                         </div>
                         {/* Title - consistent for both types */}
                         <div className="basis-title">
-                          {rel?.type === 'internal' && (rel?.entry_id || rel?.title) ? (
-                            <span className="link-button">{rel.title || rel.entry_id}</span>
-                          ) : (
                             <span className="basis-title-text">{rel?.title || rel?.citation || String(rel)}</span>
-                          )}
                         </div>
                         
                         {/* Citation - smaller grey text below title */}
@@ -904,27 +1071,11 @@ const EntryView = ({ entry, onEdit, onDelete, onExport, teamMemberNames = {} }) 
                       </div>
                     ))}
                   </div>
-              ) : (
-                <div className="empty-field">Empty</div>
+                </div>
               )}
             </div>
-          </div>
-
-          {/* Raw Text */}
-          {currentEntry.text_raw && (
-            <div className="entry-section">
-              <h3>Raw Text</h3>
-              <div className="text-content">{currentEntry.text_raw}</div>
-            </div>
           )}
 
-          {/* Normalized Text */}
-          {currentEntry.text_normalized && (
-            <div className="entry-section">
-              <h3>Normalized Text</h3>
-              <div className="text-content">{currentEntry.text_normalized}</div>
-            </div>
-          )}
         </div>
       </div>
     </div>

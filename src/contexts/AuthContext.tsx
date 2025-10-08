@@ -25,31 +25,18 @@ interface AuthProviderProps {
 }
 
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
-  const [user, setUser] = useState<User | null>(null);
+  // Since authentication was removed, provide a default user for compatibility
+  const [user, setUser] = useState<User | null>({
+    id: 1,
+    name: 'User',
+    personId: 'P1',
+    username: 'user',
+    role: 'user'
+  });
   const [token, setToken] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(false);
 
-  useEffect(() => {
-    const initializeAuth = async () => {
-      const storedToken = localStorage.getItem('auth_token');
-      const storedUser = localStorage.getItem('user_info');
-
-      if (storedToken && storedUser) {
-        try {
-          // Verify token is still valid
-          const userInfo = await getCurrentUser(storedToken);
-          setToken(storedToken);
-          setUser(userInfo);
-        } catch (error) {
-          // Token is invalid, clear all user data
-          clearAllUserData();
-        }
-      }
-      setIsLoading(false);
-    };
-
-    initializeAuth();
-  }, []);
+  // No authentication initialization needed since auth was removed
 
   const login = (newToken: string, userInfo: User) => {
     setToken(newToken);

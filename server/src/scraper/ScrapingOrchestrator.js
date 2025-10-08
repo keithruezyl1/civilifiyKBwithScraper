@@ -251,6 +251,17 @@ export class ScrapingOrchestrator {
       for (const result of parsedResults) {
         const norm = this.normalizePerEntry(result);
         if (!norm) { continue; }
+        // Generate unique identifier for each section to avoid conflicts
+        const sectionUrl = result.metadata?.articleNumber && result.metadata?.sectionNumber 
+          ? `${result.canonical_url}#art${result.metadata.articleNumber}-sec${result.metadata.sectionNumber}`
+          : result.metadata?.preamble 
+            ? `${result.canonical_url}#preamble`
+            : result.metadata?.ordinance
+              ? `${result.canonical_url}#ordinance`
+              : `${result.canonical_url}#art${result.metadata?.articleNumber || 'unknown'}`;
+        
+        const sectionHash = `${contentHash}-${result.sequence_index}`;
+        
         // Store in scraped_documents
         await this.db.query(`
           INSERT INTO scraped_documents 
@@ -264,15 +275,15 @@ export class ScrapingOrchestrator {
             parse_status = 'parsed'
         `, [
           sessionId,
-          result.canonical_url,
-          contentHash,
+          sectionUrl,
+          sectionHash,
           norm.headerPlusBody,
           JSON.stringify(result.metadata),
           result.sequence_index
         ]);
 
-        // Create KB entry (draft status)
-        await this.createKBEntry(sessionId, { ...result, normalized: norm }, contentHash);
+        // Note: KB entries are now created only through "Generate Entries" process
+        // This ensures proper separation between scraping (raw data) and entry generation
       }
       
       console.log(`✅ Processed: ${url} (${parsedResults.length} sections)`);
@@ -351,66 +362,8 @@ export class ScrapingOrchestrator {
     return result.rows;
   }
 
-  /**
-   * Create KB entry from parsed result
-   */
-  async createKBEntry(sessionId, parsedResult, contentHash) {
-    try {
-      const { metadata } = parsedResult;
-      const text = parsedResult?.normalized?.headerPlusBody || parsedResult.extracted_text || '';
-      
-      // Generate entry ID
-      const entryId = this.generateEntryId(metadata);
-      // Skip if an entry with the same entry_id already exists
-      const existing = await this.db.query(`SELECT 1 FROM kb_entries WHERE entry_id = $1`, [entryId]);
-      if (existing.rowCount > 0) {
-        console.log(`↷ Skipped duplicate KB entry: ${entryId}`);
-        return;
-      }
-      
-      // Create entry in draft status
-      await this.db.query(`
-        INSERT INTO kb_entries (
-          entry_id, type, title, text, entry_subtype,
-          batch_release_id, published_at, provenance, created_by,
-          created_at, updated_at
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW(), NOW())
-        ON CONFLICT (entry_id) DO NOTHING
-      `, [
-        entryId,
-        'constitution_provision', // Base type
-        metadata.title || (parsedResult?.normalized?.title) || '',
-        text,
-        'constitution_1987', // Subtype
-        null, // No batch assigned yet (will be set on release)
-        null, // Not published yet
-        JSON.stringify({
-          source: 'lawphil_scraping',
-          session_id: sessionId,
-          content_hash: contentHash,
-          canonical_url: parsedResult.canonical_url,
-          scraped_at: new Date().toISOString(),
-          metadata
-        }),
-        1 // Default user ID
-      ]);
-
-      // Set visibility default (GLI, CPA) and source_urls
-      await this.db.query(
-        `UPDATE kb_entries
-         SET visibility = COALESCE(visibility, '["GLI","CPA"]'::jsonb),
-             source_urls = COALESCE(source_urls, '[]'::jsonb) || to_jsonb($2::text)
-         WHERE entry_id = $1`,
-        [entryId, parsedResult.canonical_url]
-      );
-      
-      console.log(`📝 Created KB entry: ${entryId}`);
-      
-    } catch (error) {
-      console.error('Failed to create KB entry:', error);
-      throw error;
-    }
-  }
+  // Note: KB entry creation has been moved to the "Generate Entries" process
+  // This ensures proper separation between scraping (raw data) and entry generation
 
   /**
    * Generate unique entry ID

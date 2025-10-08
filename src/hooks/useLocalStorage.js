@@ -43,7 +43,7 @@ export const useLocalStorage = () => {
     }
   }, []);
 
-  // Hydrate from DB after initial mount
+  // Hydrate from DB after initial mount (always authoritative)
   useEffect(() => {
     const refresh = async () => {
       try {
@@ -56,10 +56,35 @@ export const useLocalStorage = () => {
           setEntries(mapped);
         }
       } catch (err) {
-        console.warn('DB fetch failed; showing local entries', err);
+        console.warn('DB fetch failed; no local cache used', err);
       }
     };
     refresh();
+  }, []);
+
+  // Listen for external refresh/replace/clear events from header button
+  useEffect(() => {
+    const onReplace = (e) => {
+      const rows = (e && e.detail && Array.isArray(e.detail.entries)) ? e.detail.entries : [];
+      const mapped = rows.map((x) => ({ ...x, id: x.entry_id }));
+      setEntries(mapped);
+    };
+    const onForceRefresh = async () => {
+      try {
+        const rows = await fetchAllEntriesFromDb();
+        const mapped = Array.isArray(rows) ? rows.map((x) => ({ ...x, id: x.entry_id })) : [];
+        setEntries(mapped);
+      } catch {}
+    };
+    const onClear = () => setEntries([]);
+    window.addEventListener('replace-entries', onReplace);
+    window.addEventListener('force-refresh-entries', onForceRefresh);
+    window.addEventListener('clear-entries', onClear);
+    return () => {
+      window.removeEventListener('replace-entries', onReplace);
+      window.removeEventListener('force-refresh-entries', onForceRefresh);
+      window.removeEventListener('clear-entries', onClear);
+    };
   }, []);
 
   // No longer persisting entries to localStorage (DB is source of truth)
@@ -749,57 +774,28 @@ export const useLocalStorage = () => {
       filteredEntries = filteredEntries.filter(entry => entry.type === filters.type);
     }
 
+    // Subtype filter (only applies when type is not 'all')
+    if (filters.subtype && filters.subtype !== 'all' && filters.type && filters.type !== 'all') {
+      filteredEntries = filteredEntries.filter(entry => entry.entry_subtype === filters.subtype);
+    }
+
     // Jurisdiction filter
     if (filters.jurisdiction && filters.jurisdiction !== 'all') {
       filteredEntries = filteredEntries.filter(entry => entry.jurisdiction === filters.jurisdiction);
     }
 
-    // Status filter
+    // Status filter (released/unreleased)
     if (filters.status && filters.status !== 'all') {
-      filteredEntries = filteredEntries.filter(entry => entry.status === filters.status);
+      filteredEntries = filteredEntries.filter(entry => {
+        if (filters.status === 'released') {
+          return entry.published_at !== null && entry.published_at !== undefined;
+        } else if (filters.status === 'unreleased') {
+          return entry.published_at === null || entry.published_at === undefined;
+        }
+        return true;
+      });
     }
 
-      // Verified filter
-  if (filters.verified && filters.verified !== 'all') {
-    console.log('Verified filter active:', filters.verified);
-    filteredEntries = filteredEntries.filter(entry => {
-      const isVerified = entry.verified === true;
-      
-      if (filters.verified === 'yes') {
-        return isVerified;
-      } else if (filters.verified === 'not_verified') {
-        return !isVerified;
-      }
-      
-      return true;
-    });
-  }
-
-      // Team member filter
-  if (filters.team_member_id && filters.team_member_id !== 'all') {
-    filteredEntries = filteredEntries.filter(entry => {
-      // Primary match: created_by field (1-5)
-      const entryCreatedBy = entry.created_by;
-      const filterTeamMember = filters.team_member_id;
-      
-      
-      // Match by created_by field (the main field in DB)
-      const matchesCreatedBy = String(entryCreatedBy) === String(filterTeamMember);
-      
-      // Fallback matches for other fields
-      const entryTeamMember = entry.team_member_id;
-      const entryCreatedByName = entry.created_by_name;
-      const entryCreatedByUsername = entry.created_by_username;
-      
-      const matchesId = String(entryTeamMember) === String(filterTeamMember);
-      const matchesName = entryCreatedByName && String(entryCreatedByName).toLowerCase() === String(filterTeamMember).toLowerCase();
-      const matchesUsername = entryCreatedByUsername && String(entryCreatedByUsername).toLowerCase() === String(filterTeamMember).toLowerCase();
-      
-      const isMatch = matchesCreatedBy || matchesId || matchesName || matchesUsername;
-      
-      return isMatch;
-    });
-  }
 
     // Tags filter
     if (filters.tags && filters.tags.length > 0) {
@@ -967,6 +963,7 @@ export const useLocalStorage = () => {
   // Clear all entries
   const clearAllEntries = () => {
     setEntries([]);
+    try { localStorage.removeItem(STORAGE_KEY); } catch {}
     setTeamProgress({});
     setDailyQuotas({});
   };

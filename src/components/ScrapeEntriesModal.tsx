@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import Modal from './Modal/Modal';
+import Confetti from './Confetti/Confetti';
 const API = process.env.REACT_APP_API_BASE || 'http://localhost:4000';
 
 interface ScrapeEntriesModalProps {
@@ -40,6 +41,17 @@ export default function ScrapeEntriesModal({ isOpen, onClose, onSuccess }: Scrap
   const [normalizedView, setNormalizedView] = useState(true);
   const [notepadSearchQuery, setNotepadSearchQuery] = useState('');
   const [isClearingData, setIsClearingData] = useState(false);
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [generationResult, setGenerationResult] = useState<any>(null);
+  const [generationProgress, setGenerationProgress] = useState({
+    total: 0,
+    processed: 0,
+    created: 0,
+    skipped: 0,
+    errors: 0
+  });
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [showConfetti, setShowConfetti] = useState(false);
 
   // Utilities for normalization
   const numberToRoman = (num: number) => {
@@ -106,6 +118,105 @@ export default function ScrapeEntriesModal({ isOpen, onClose, onSuccess }: Scrap
              `article ${articleNum}`.includes(searchTerm) ||
              `section ${sectionNum}`.includes(searchTerm);
     });
+  };
+
+  // Regenerate entries - delete recently generated entries and restart generation
+  const regenerateEntries = async () => {
+    if (!sessionId) {
+      alert('No active session found');
+      return;
+    }
+
+    try {
+      // Clear recently generated entries
+      const clearResponse = await fetch(`${API}/api/scraping/clear-draft-entries`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!clearResponse.ok) {
+        throw new Error('Failed to clear draft entries');
+      }
+
+      // Reset generation state
+      setGenerationResult(null);
+      setShowSuccessModal(false);
+      
+      // Restart generation process
+      await generateEntries();
+      
+    } catch (error) {
+      console.error('Failed to regenerate entries:', error);
+      setError(error instanceof Error ? error.message : 'Failed to regenerate entries');
+    }
+  };
+
+  // Go to dashboard and reset lastScrapeCompleted
+  const goToDashboard = () => {
+    try {
+      localStorage.setItem('lastScrapeCompleted', '0');
+    } catch (error) {
+      console.warn('Failed to update localStorage:', error);
+    }
+    setShowSuccessModal(false);
+    onSuccess?.();
+  };
+
+  // Generate KB entries from scraped documents
+  const generateEntries = async () => {
+    if (!sessionId) {
+      alert('No active session found');
+      return;
+    }
+
+    setIsGenerating(true);
+    setGenerationResult(null);
+    setError(null);
+    
+    // Set initial total from status
+    const initialTotal = status?.parsed_documents || 0;
+    setGenerationProgress({
+      total: initialTotal,
+      processed: 0,
+      created: 0,
+      skipped: 0,
+      errors: 0
+    });
+
+    try {
+      const response = await fetch(`${API}/api/scraping/session/${sessionId}/generate-entries`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.error || 'Failed to generate entries');
+      }
+
+      setGenerationResult(result);
+      setGenerationProgress({
+        total: result.total_documents || initialTotal,
+        processed: result.total_documents || initialTotal,
+        created: result.created_count || 0,
+        skipped: result.skipped_count || 0,
+        errors: result.error_count || 0
+      });
+      setShowSuccessModal(true);
+      console.log('✅ Entry generation completed:', result);
+      
+    } catch (error) {
+      console.error('Failed to generate entries:', error);
+      setError(error instanceof Error ? error.message : 'Failed to generate entries');
+      alert(`Failed to generate entries: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } finally {
+      setIsGenerating(false);
+    }
   };
 
   // Clear all stored scraped data when modal opens
@@ -353,9 +464,23 @@ export default function ScrapeEntriesModal({ isOpen, onClose, onSuccess }: Scrap
     }
   };
 
+  // Trigger a short confetti burst when generation finishes successfully
+  useEffect(() => {
+    if (status?.status === 'completed' && !isGenerating && (generationResult?.created_count || 0) > 0) {
+      setShowConfetti(true);
+    }
+  }, [status?.status, isGenerating, generationResult?.created_count]);
+
+  // After a successful scrape, when success modal is closed, clear the flag in localStorage
+  useEffect(() => {
+    if (!showSuccessModal && generationResult) {
+      try { localStorage.removeItem('lastScrapeCompleted'); } catch {}
+    }
+  }, [showSuccessModal, generationResult]);
+
   return (
     <Modal isOpen={isOpen} onClose={handleClose} title="Scrape Entries" subtitle="Extract and parse legal documents from LawPhil">
-      <div className="scrape-modal-content">
+      <div className="scrape-modal-content" style={{ overflow: 'hidden' }}>
         {isClearingData && (
           <div className="alert alert-info">
             <div className="spinner"></div>
@@ -386,10 +511,11 @@ export default function ScrapeEntriesModal({ isOpen, onClose, onSuccess }: Scrap
               </div>
             )}
 
-            <div className="modal-actions">
+            <div className="modal-actions" style={{ display: 'flex', alignItems: 'center', gap: 12, justifyContent: 'center' }}>
               <button
                 type="button"
                 className="btn btn-secondary btn-cancel"
+                style={{ marginTop: -16 }}
                 onClick={handleClose}
                 disabled={isScraping}
               >
@@ -397,7 +523,8 @@ export default function ScrapeEntriesModal({ isOpen, onClose, onSuccess }: Scrap
               </button>
               <button
                 type="button"
-                className="btn btn-primary"
+                className="btn btn-orange"
+                style={{ marginTop: 0 }}
                 onClick={handleScrape}
                 disabled={!url.trim() || isScraping || isClearingData}
               >
@@ -444,7 +571,7 @@ export default function ScrapeEntriesModal({ isOpen, onClose, onSuccess }: Scrap
                   <div className="progress-stats">
                     <div className="stat">
                       <span className="stat-label">Total Documents:</span>
-                      <span className="stat-value">{status?.total_documents ?? 0}</span>
+                      <span className="stat-value warning">{status?.total_documents ?? 0}</span>
                     </div>
                     <div className="stat">
                       <span className="stat-label">Parsed:</span>
@@ -467,18 +594,76 @@ export default function ScrapeEntriesModal({ isOpen, onClose, onSuccess }: Scrap
               )}
             </div>
 
-            {status?.status === 'completed' && (
-              <div className="completion-message">
-                <div className="alert alert-success" style={{ textAlign: 'center' }}>
-                  <h4 style={{ marginTop: 0, marginBottom: '0.5rem', color: '#065f46' }}>Scraping Completed!</h4>
-                  <p style={{ margin: 0 }}>
-                    Successfully parsed {status.parsed_documents} documents from the URL.
-                    {status.failed_documents > 0 && (
-                      <span> {status.failed_documents} documents failed to parse.</span>
-                    )}
-                  </p>
+            {/* Generation Status: simplified */}
+            {isGenerating && (
+              <div style={{ display: 'flex', justifyContent: 'center', padding: '24px 0' }}>
+                <div className="wave-text" aria-live="polite" aria-busy="true">
+                  {['G','e','n','e','r','a','t','i','n','g',' ','e','n','t','r','i','e','s','.','.','.'].map((ch, idx) => (
+                    <span key={idx}>{ch}</span>
+                  ))}
                 </div>
-                <div className="modal-actions">
+              </div>
+            )}
+
+            {status?.status === 'completed' && !isGenerating && (
+              <div className="completion-message">
+                <Confetti show={showConfetti} onComplete={() => setShowConfetti(false)} />
+                <div style={{
+                  background: 'linear-gradient(135deg, #22c55e 0%, #16a34a 40%, #0ea5e9 100%)',
+                  color: 'white',
+                  borderRadius: 12,
+                  padding: '18px 16px',
+                  textAlign: 'center',
+                  boxShadow: '0 8px 24px rgba(16,185,129,0.35)'
+                }}>
+                  <div style={{ fontSize: 18, fontWeight: 600, marginBottom: 6 }}>Scraping Completed</div>
+                  <div style={{ opacity: 0.95 }}>Processed {status.parsed_documents} of {status.total_documents} documents{status.failed_documents > 0 ? ` • ${status.failed_documents} failed` : ''}.</div>
+                </div>
+
+                {generationResult && (
+                  <div style={{
+                    marginTop: 16,
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(3, minmax(0,1fr))',
+                    gap: 12
+                  }}>
+                    <div style={{
+                      background: '#052e16',
+                      border: '1px solid #064e3b',
+                      color: '#bbf7d0',
+                      borderRadius: 10,
+                      padding: 12,
+                      textAlign: 'center'
+                    }}>
+                      <div style={{ fontSize: 12, opacity: 0.9 }}>Entries Created</div>
+                      <div style={{ fontSize: 24, fontWeight: 700 }}>{generationResult.created_count}</div>
+                    </div>
+                    <div style={{
+                      background: '#111827',
+                      border: '1px solid #374151',
+                      color: '#fde68a',
+                      borderRadius: 10,
+                      padding: 12,
+                      textAlign: 'center'
+                    }}>
+                      <div style={{ fontSize: 12, opacity: 0.9 }}>Skipped</div>
+                      <div style={{ fontSize: 24, fontWeight: 700 }}>{generationResult.skipped_count}</div>
+                    </div>
+                    <div style={{
+                      background: '#180d0f',
+                      border: '1px solid #7f1d1d',
+                      color: '#fca5a5',
+                      borderRadius: 10,
+                      padding: 12,
+                      textAlign: 'center'
+                    }}>
+                      <div style={{ fontSize: 12, opacity: 0.9 }}>Errors</div>
+                      <div style={{ fontSize: 24, fontWeight: 700 }}>{generationResult.error_count}</div>
+                    </div>
+                  </div>
+                )}
+
+                <div className="modal-actions" style={{ marginTop: 0, display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'nowrap' }}>
                   <button
                     type="button"
                     className="btn btn-warning"
@@ -492,7 +677,7 @@ export default function ScrapeEntriesModal({ isOpen, onClose, onSuccess }: Scrap
                           let text = d?.extracted_text || '';
                           if (normalizedView) {
                             const norm = normalizeDoc(d);
-                            if (!norm) return null; // drop items that do not match pattern
+                            if (!norm) return null;
                             text = norm;
                           }
                           return ({ index: i, title: d?.metadata?.title || `Article ${d?.metadata?.articleNumber} - Section ${d?.metadata?.sectionNumber}`, metadata: d?.metadata, extracted_text: text });
@@ -508,42 +693,42 @@ export default function ScrapeEntriesModal({ isOpen, onClose, onSuccess }: Scrap
                   </button>
                   <button
                     type="button"
+                    className="btn btn-success"
+                    disabled={isGenerating || !sessionId}
+                    onClick={generateEntries}
+                  >
+                    {isGenerating ? 'Generating Entries…' : 'Generate Entries'}
+                  </button>
+                  {/* Go to Dashboard button removed per request */}
+                  <button
+                    type="button"
+                    className="btn btn-orange"
+                    onClick={() => setShowSuccessView(false)}
+                  >
+                    Run Another Scrape
+                  </button>
+                  <button
+                    type="button"
                     className="btn btn-danger"
                     onClick={async () => {
                       try {
-                        const r = await fetch(`${API}/api/scraping/clear-draft-entries`, { method: 'POST' });
+                        const r = await fetch(`${API}/api/scraping/clear-scraped-data`, { method: 'POST' });
                         const d = await r.json();
-                        alert(`Cleared ${d.deleted_count || 0} scraped draft entries.`);
-                        // Reset modal back to URL input state so user can start a fresh scrape
+                        alert(`Cleared ${d.deleted_count || 0} scraped documents and sessions. Generated KB entries were preserved.`);
                         setUrl('');
                         setStatus(null);
                         setProgress(0);
                         setSessionId(null);
                         setIsScraping(false);
-                        try { localStorage.removeItem('lastScrapeCompleted'); } catch {}
+                        setGenerationResult(null);
+                        setShowSuccessModal(false);
+                        setShowSuccessView(false);
                       } catch (e) {
-                        alert('Failed to clear scraped entries.');
+                        alert('Failed to clear scraped data.');
                       }
                     }}
                   >
-                    Delete Scraped Entries
-                  </button>
-                  <button
-                    type="button"
-                    className="btn btn-success"
-                    onClick={() => {
-                      // Placeholder for GPT integration
-                      console.log('Generate Entries clicked (pending GPT integration)');
-                    }}
-                  >
-                    Generate Entries
-                  </button>
-                  <button
-                    type="button"
-                    className="btn btn-outline-danger"
-                    onClick={handleClose}
-                  >
-                    Close
+                    Clear Scraped Data
                   </button>
                 </div>
               </div>
@@ -891,13 +1076,12 @@ export default function ScrapeEntriesModal({ isOpen, onClose, onSuccess }: Scrap
 
         .progress-stats {
           display: flex;
-          justify-content: space-around;
+          gap: 1rem;
           margin-top: 1rem;
+          justify-content: center;
+          flex-wrap: wrap;
         }
 
-        .stat {
-          text-align: center;
-        }
 
         .stat-label {
           display: block;
@@ -906,23 +1090,40 @@ export default function ScrapeEntriesModal({ isOpen, onClose, onSuccess }: Scrap
           margin-bottom: 0.25rem;
         }
 
+        .modal-content .progress-stats .stat {
+          text-align: center;
+          min-width: 120px;
+          background: none !important;
+          background-color: transparent !important;
+          border: none !important;
+          padding: 0 !important;
+          margin: 0 !important;
+          box-shadow: none !important;
+        }
+
+        /* Override any inherited styles */
+        .modal-content .progress-stats .stat * {
+          background: none !important;
+          background-color: transparent !important;
+          border: none !important;
+        }
+
         .stat-value {
           display: block;
           font-size: 1.25rem;
           font-weight: 600;
-          color: #333;
         }
 
-        .stat-value.success {
-          color: #22c55e; /* green */
+        .modal-content .progress-stats .stat-value.warning {
+          color: #f59e0b !important; /* yellow text */
         }
 
-        .stat-value.error {
-          color: #ef4444; /* red */
+        .modal-content .progress-stats .stat-value.success {
+          color: #22c55e !important; /* green text */
         }
 
-        .stat-value.warning {
-          color: #f59e0b; /* yellow */
+        .modal-content .progress-stats .stat-value.error {
+          color: #ef4444 !important; /* red text */
         }
 
         .scraping-details {
@@ -1048,7 +1249,208 @@ export default function ScrapeEntriesModal({ isOpen, onClose, onSuccess }: Scrap
           padding: 0.75rem; 
           color: #d1d5db; 
         }
+        
+        /* Generation Progress Styles */
+        .generating-content {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          gap: 0.5rem;
+        }
+        
+        .spinner {
+          width: 20px;
+          height: 20px;
+          border: 2px solid #f3f3f3;
+          border-top: 2px solid #007bff;
+          border-radius: 50%;
+          animation: spin 1s linear infinite;
+        }
+        
+        @keyframes spin {
+          0% { transform: rotate(0deg); }
+          100% { transform: rotate(360deg); }
+        }
+        
+        .progress-stats {
+          display: flex;
+          gap: 1rem;
+          font-size: 0.8rem;
+          color: #666;
+        }
+        
+        .progress-stats span {
+          padding: 0.2rem 0.5rem;
+          background: #f8f9fa;
+          border-radius: 4px;
+        }
+        
+        /* Success Modal Styles */
+        .success-modal {
+          max-width: 500px;
+          background: white;
+          border-radius: 12px;
+          box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+        }
+        
+        .success-stats {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 1rem;
+          margin-bottom: 1.5rem;
+        }
+
+        /* Custom button colors */
+        .btn { margin-top: 32px; }
+        .btn.btn-warning { background: #f59e0b; border-color: #f59e0b; color: #ffffff; }
+        .btn.btn-warning:hover { background: #d97706; border-color: #d97706; color: #111827; }
+        .btn.btn-orange { background: #c2410c; border-color: #c2410c; color: #ffffff; }
+        .btn.btn-orange:hover { background: #9a3412; border-color: #9a3412; color: #ffffff; }
+
+        /* Animated wave text for generating indicator */
+        .wave-text {
+          font-weight: 700;
+          font-size: 1.25rem;
+          color: #22c55e; /* green */
+          display: inline-block;
+          letter-spacing: 1px;
+        }
+        .wave-text span {
+          display: inline-block;
+          animation: wave 1.2s ease-in-out infinite;
+        }
+        .wave-text span:nth-child(2) { animation-delay: 0.1s; }
+        .wave-text span:nth-child(3) { animation-delay: 0.2s; }
+        .wave-text span:nth-child(4) { animation-delay: 0.3s; }
+        .wave-text span:nth-child(5) { animation-delay: 0.4s; }
+        .wave-text span:nth-child(6) { animation-delay: 0.5s; }
+        .wave-text span:nth-child(7) { animation-delay: 0.6s; }
+        .wave-text span:nth-child(8) { animation-delay: 0.7s; }
+        .wave-text span:nth-child(9) { animation-delay: 0.8s; }
+        .wave-text span:nth-child(10) { animation-delay: 0.9s; }
+        .wave-text span:nth-child(11) { animation-delay: 1.0s; }
+        .wave-text span:nth-child(12) { animation-delay: 1.1s; }
+        .wave-text span:nth-child(13) { animation-delay: 1.2s; }
+        @keyframes wave {
+          0%, 100% { transform: translateY(0); opacity: 0.85; }
+          50% { transform: translateY(-4px); opacity: 1; }
+        }
+        
+        .stat-item {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          padding: 0.75rem;
+          border-radius: 8px;
+          background: #f8f9fa;
+          border: 1px solid #e9ecef;
+        }
+        
+        .stat-item.success {
+          background: #d4edda;
+          border-color: #c3e6cb;
+        }
+        
+        .stat-item.warning {
+          background: #fff3cd;
+          border-color: #ffeaa7;
+        }
+        
+        .stat-item.error {
+          background: #f8d7da;
+          border-color: #f5c6cb;
+        }
+        
+        .stat-label {
+          font-weight: 500;
+          color: #495057;
+        }
+        
+        .stat-value {
+          font-weight: 700;
+          font-size: 1.1rem;
+        }
+        
+        .stat-item.success .stat-value {
+          color: #155724;
+        }
+        
+        .stat-item.warning .stat-value {
+          color: #856404;
+        }
+        
+        .stat-item.error .stat-value {
+          color: #721c24;
+        }
+        
+        .success-message {
+          text-align: center;
+          margin-bottom: 1.5rem;
+        }
+        
+        .success-message p {
+          margin-bottom: 0.5rem;
+          color: #495057;
+        }
+        
+        .success-message strong {
+          color: #28a745;
+        }
       `}</style>
+
+      {/* Success Modal */}
+      {showSuccessModal && (
+        <div className="modal-overlay" onClick={() => setShowSuccessModal(false)}>
+          <div className="modal-content success-modal" onClick={(e) => e.stopPropagation()} style={{ overflow: 'visible' }}>
+            <div className="modal-header" style={{ marginBottom: 12 }}>
+              <h3>✅ Entry Generation Complete!</h3>
+            </div>
+            
+            <div className="modal-body">
+              <div className="success-stats">
+                <div className="stat-item">
+                  <span className="stat-label">Total Documents:</span>
+                  <span className="stat-value" style={{ color: '#6b7280' }}>{generationProgress.total}</span>
+                </div>
+                <div className="stat-item success">
+                  <span className="stat-label">Entries Created:</span>
+                  <span className="stat-value">{generationProgress.created}</span>
+                </div>
+                <div className="stat-item warning">
+                  <span className="stat-label">Skipped:</span>
+                  <span className="stat-value">{generationProgress.skipped}</span>
+                </div>
+                <div className="stat-item error">
+                  <span className="stat-label">Errors:</span>
+                  <span className="stat-value">{generationProgress.errors}</span>
+                </div>
+              </div>
+              
+              <div className="success-message">
+                <p>🎉 Successfully generated <strong>{generationProgress.created}</strong> KB entries with comprehensive GPT enrichment and vector embeddings!</p>
+                <p>You can now view these entries in the dashboard and release them when ready.</p>
+              </div>
+            </div>
+            
+            <div className="modal-footer" style={{ display: 'flex', gap: 12 }}>
+              <button 
+                className="btn btn-orange"
+                style={{ flex: 1, minWidth: 0 }}
+                onClick={goToDashboard}
+              >
+                View Entries in Dashboard
+              </button>
+              <button 
+                className="btn btn-success"
+                style={{ flex: 1, minWidth: 0 }}
+                onClick={regenerateEntries}
+              >
+                Regenerate Entries
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </Modal>
   );
 }

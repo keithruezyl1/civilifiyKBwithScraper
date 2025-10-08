@@ -47,12 +47,24 @@ create index if not exists kb_entries_embedding_ivff ON kb_entries USING ivfflat
 
 -- Helpful GIN on tags if using tags filtering (guarded for reruns after slimming)
 DO $$
+DECLARE
+  col_is_jsonb BOOLEAN := false;
 BEGIN
-  IF EXISTS (
-    SELECT 1 FROM information_schema.columns 
-    WHERE table_name = 'kb_entries' AND column_name = 'tags'
-  ) THEN
-    CREATE INDEX IF NOT EXISTS kb_entries_tags_gin on kb_entries using gin (tags jsonb_path_ops);
+  SELECT (t.typname = 'jsonb') INTO col_is_jsonb
+  FROM pg_catalog.pg_attribute a
+  JOIN pg_catalog.pg_class c ON a.attrelid = c.oid
+  JOIN pg_catalog.pg_type t ON a.atttypid = t.oid
+  WHERE c.relname = 'kb_entries' AND a.attname = 'tags' AND a.attnum > 0 AND NOT a.attisdropped
+  LIMIT 1;
+
+  IF col_is_jsonb THEN
+    BEGIN
+      CREATE INDEX IF NOT EXISTS kb_entries_tags_gin on kb_entries using gin (tags jsonb_path_ops);
+    EXCEPTION WHEN OTHERS THEN
+      RAISE NOTICE 'Skipping kb_entries_tags_gin: %', SQLERRM;
+    END;
+  ELSE
+    RAISE NOTICE 'Skipping kb_entries_tags_gin: column tags is not jsonb or does not exist';
   END IF;
 END $$;
 

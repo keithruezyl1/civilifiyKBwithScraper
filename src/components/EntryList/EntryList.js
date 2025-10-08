@@ -7,6 +7,35 @@ import { PageNavigator } from '../ui/PageNavigator';
 // import { getAllTags } from '../../data/tags';
 import './EntryList.css';
 
+// Entry subtypes mapping based on the database schema
+const ENTRY_SUBTYPES = {
+  constitution_provision: [
+    { value: 'constitution_1987', label: '1987 Constitution' },
+    { value: 'constitution_1986', label: '1986 Constitution' },
+    { value: 'constitution_1973', label: '1973 Constitution' },
+    { value: 'constitution_1935', label: '1935 Constitution' },
+    { value: 'constitution_malolos', label: 'Malolos Constitution' }
+  ],
+  statute_section: [
+    { value: 'republic_act', label: 'Republic Act' },
+    { value: 'commonwealth_act', label: 'Commonwealth Act' },
+    { value: 'mga_batas_pambansa', label: 'Mga Batas Pambansa' },
+    { value: 'act', label: 'Act' }
+  ],
+  rule_of_court_provision: [
+    { value: 'roc_criminal_proc_1985', label: 'Criminal Procedure 1985' },
+    { value: 'roc_civil_proc', label: 'Civil Procedure' },
+    { value: 'roc_evidence_2019', label: 'Evidence 2019' },
+    { value: 'roc_special_proceedings', label: 'Special Proceedings' },
+    { value: 'roc_other', label: 'Other Rules' }
+  ]
+};
+
+// Function to get subtypes for a given entry type
+const getSubtypesForType = (entryType) => {
+  return ENTRY_SUBTYPES[entryType] || [];
+};
+
 const EntryList = ({ entries, onViewEntry, onEditEntry, onDeleteEntry, onExportEntry, searchEntries, teamMemberNames = {} }) => {
   const [selectedEntry, setSelectedEntry] = useState(null);
   const [entryStack, setEntryStack] = useState([]); // stack of previously opened entries
@@ -107,6 +136,7 @@ const EntryList = ({ entries, onViewEntry, onEditEntry, onDeleteEntry, onExportE
   const [customJurisdiction, setCustomJurisdiction] = useState('');
   const [filters, setFilters] = useState({
     type: 'all',
+    subtype: 'all',
     jurisdiction: 'all',
     status: 'all',
     verified: 'all',
@@ -227,6 +257,9 @@ const EntryList = ({ entries, onViewEntry, onEditEntry, onDeleteEntry, onExportE
         setFilters(prev => ({ ...prev, jurisdiction: value }));
         setCustomJurisdiction('');
       }
+    } else if (filterName === 'type') {
+      // When entry type changes, reset subtype to 'all'
+      setFilters(prev => ({ ...prev, type: value, subtype: 'all' }));
     } else {
       setFilters(prev => ({ ...prev, [filterName]: value }));
     }
@@ -235,6 +268,7 @@ const EntryList = ({ entries, onViewEntry, onEditEntry, onDeleteEntry, onExportE
   const clearFilters = useCallback(() => {
     setFilters({
       type: 'all',
+      subtype: 'all',
       jurisdiction: 'all',
       status: 'all',
       verified: 'all',
@@ -363,6 +397,23 @@ const EntryList = ({ entries, onViewEntry, onEditEntry, onDeleteEntry, onExportE
                 </select>
               </div>
 
+              {filters.type !== 'all' && getSubtypesForType(filters.type).length > 0 && (
+                <div className="filter-group">
+                  <label>Sub Entry Type</label>
+                  <select
+                    value={filters.subtype}
+                    onChange={(e) => handleFilterChange('subtype', e.target.value)}
+                  >
+                    <option value="all">All Subtypes</option>
+                    {getSubtypesForType(filters.type).map(subtype => (
+                      <option key={subtype.value} value={subtype.value}>
+                        {subtype.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
               <div className="filter-group">
                 <label>Jurisdiction</label>
                 <select
@@ -401,42 +452,12 @@ const EntryList = ({ entries, onViewEntry, onEditEntry, onDeleteEntry, onExportE
                   value={filters.status}
                   onChange={(e) => handleFilterChange('status', e.target.value)}
                 >
-                  <option value="all">All Statuses</option>
-                  <option value="active">Active</option>
-                  <option value="amended">Amended</option>
-                  <option value="repealed">Repealed</option>
-                  <option value="draft">Draft</option>
-                  <option value="approved">Approved</option>
-                  <option value="published">Published</option>
-                </select>
-              </div>
-
-              <div className="filter-group">
-                <label>Verified</label>
-                <select
-                  value={filters.verified}
-                  onChange={(e) => handleFilterChange('verified', e.target.value)}
-                >
                   <option value="all">All</option>
-                  <option value="yes">Yes</option>
-                  <option value="not_verified">Not Verified</option>
+                  <option value="released">Released</option>
+                  <option value="unreleased">Unreleased</option>
                 </select>
               </div>
 
-              <div className="filter-group">
-                <label>Team Member</label>
-                <select
-                  value={filters.team_member_id}
-                  onChange={(e) => handleFilterChange('team_member_id', e.target.value)}
-                >
-                  <option value="all">All Team Members</option>
-                  {Object.entries(teamMemberNames).map(([id, name]) => (
-                    <option key={id} value={Number(id)}>
-                      {name}
-                    </option>
-                  ))}
-                </select>
-              </div>
 
               <div className="filter-group">
                 <button onClick={clearFilters} className="btn-secondary btn-sm">

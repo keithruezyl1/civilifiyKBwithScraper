@@ -38,6 +38,7 @@ async function setupDatabase() {
       join(__dirname, '../sql/017_scraping_automation.sql'),
       join(__dirname, '../sql/018_populate_subtypes.sql'),
       join(__dirname, '../sql/019_slim_kb_entries.sql'),
+      join(__dirname, '../sql/020_comprehensive_enrichment.sql'),
       // Idempotent post-initial migrations
       join(__dirname, '../sql/007_add_created_by_name.sql'),
       join(__dirname, '../sql/008_add_verified.sql'),
@@ -60,7 +61,18 @@ async function setupDatabase() {
           continue;
         }
         console.log(`Executing: ${sqlFile}`);
-        await client.query(sql);
+        try {
+          await client.query(sql);
+        } catch (err) {
+          const emsg = err?.message || '';
+          if (/maintenance_work_mem|work_mem|memory required/i.test(emsg)) {
+            console.warn(`Low work_mem for ${sqlFile}. Retrying with higher temp settings...`);
+            await client.query("SET maintenance_work_mem = '256MB'; SET work_mem = '256MB';");
+            await client.query(sql);
+          } else {
+            throw err;
+          }
+        }
         console.log(`Executed ${sqlFile}`);
       } catch (error) {
         // Ignore errors for existing objects

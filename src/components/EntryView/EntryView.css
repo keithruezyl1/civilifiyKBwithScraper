@@ -274,6 +274,14 @@
   font-size: 0.875rem;
 }
 
+.tag-concept {
+  background: #10b981;
+  color: white;
+  padding: 0.25rem 0.5rem;
+  border-radius: 4px;
+  font-size: 0.875rem;
+}
+
 .summary-text {
   font-size: 1.1rem;
   line-height: 1.6;

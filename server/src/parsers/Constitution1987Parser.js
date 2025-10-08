@@ -70,18 +70,28 @@ export class Constitution1987Parser {
 
   /**
    * Identify Preamble entry
+   * All text until "ARTICLE I" is part of the Preamble
    */
   identifyPreamble(bodyText, canonicalUrl) {
+    // Find the start of ARTICLE I
+    const articleIMatch = bodyText.match(/ARTICLE\s+I\s*[-–]?\s*/i);
+    if (!articleIMatch) return null;
+    
+    // Extract everything before ARTICLE I
+    const preambleText = bodyText.substring(0, articleIMatch.index).trim();
+    
+    // Look for preamble-specific content
     const preamblePatterns = [
-      /PREAMBLE\s*([^]*?)(?=ARTICLE\s+[IVX]+|$)/i,
-      /We, the sovereign Filipino people[^]*?(?=ARTICLE\s+[IVX]+|$)/i
+      /PREAMBLE\s*([^]*?)(?=ARTICLE\s+I)/i,
+      /We, the sovereign Filipino people[^]*?(?=ARTICLE\s+I)/i
     ];
     
     for (const pattern of preamblePatterns) {
-      const match = bodyText.match(pattern);
+      const match = preambleText.match(pattern);
       if (match) {
         const text = this.cleanText(match[1] || match[0]);
         if (text && text.length > 50) {
+          console.log('Found Preamble');
           return {
             extracted_text: text,
             metadata: {
@@ -193,12 +203,12 @@ export class Constitution1987Parser {
       for (const section of sections) {
         if (!section.text || section.text.length <= 10) continue;
         let sectionText = section.text;
-        // Special rule: Article 18 Section 27 stops at 'Adopted:'; remaining goes to Ordinance
+        // Special rule: Article 18 Section 27 stops at '...hereunder affixed.'; remaining goes to Ordinance
         if (articleNumber === 18 && String(section.number).replace(/\D/g,'') === '27') {
-          const parts = sectionText.split(/\bAdopted:\b/i);
+          const parts = sectionText.split(/\.\.\.hereunder affixed\./i);
           if (parts.length > 1) {
-            sectionText = parts[0].trim();
-            ordinanceText = ('Adopted:' + parts.slice(1).join('Adopted:')).trim();
+            sectionText = (parts[0] + '...hereunder affixed.').trim();
+            ordinanceText = parts.slice(1).join('...hereunder affixed.').trim();
           }
         }
         
@@ -255,17 +265,24 @@ export class Constitution1987Parser {
    * Identify Ordinance (if present)
    */
   identifyOrdinance(bodyText, canonicalUrl) {
+    // Find the end of Article 18 (after the last section)
+    const article18EndMatch = bodyText.match(/ARTICLE\s+XVIII[^]*?(?=ORDINANCE|$)/i);
+    if (!article18EndMatch) return null;
+    
+    // Extract everything after Article 18
+    const afterArticle18 = bodyText.substring(article18EndMatch.index + article18EndMatch[0].length).trim();
+    
     const ordinancePatterns = [
-      /ORDINANCE\s*([^]*?)(?=ARTICLE\s+[IVX]+|$)/i,
-      /City Ordinance[^]*?(?=ARTICLE\s+[IVX]+|$)/i,
-      /Municipal Ordinance[^]*?(?=ARTICLE\s+[IVX]+|$)/i
+      /ORDINANCE\s*([^]*?)$/i,
+      /ORDINANCE\s*([^]*?)(?=\n\n|$)/i
     ];
     
     for (const pattern of ordinancePatterns) {
-      const match = bodyText.match(pattern);
+      const match = afterArticle18.match(pattern);
       if (match) {
         const text = this.cleanText(match[1] || match[0]);
         if (text && text.length > 50) {
+          console.log('Found Ordinance');
           return {
             extracted_text: text,
             metadata: {

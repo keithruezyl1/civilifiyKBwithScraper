@@ -21,56 +21,49 @@ import { upsertEntry, deleteEntryVector, clearEntriesVector } from './services/v
 import { fetchEntryById } from './services/kbApi';
 // Plans API removed: we now load from bundled JSON
 import ChatModal from './components/kb/ChatModal';
-// Authentication removed - no login required
+import { AuthProvider } from './contexts/AuthContext';
+// Authentication removed - no login required, but EntryView still needs AuthProvider
 const API = process.env.REACT_APP_API_BASE || 'http://localhost:4000';
 
 function HeaderNotificationsButton() {
-  const [open, setOpen] = useState(false);
-  const [anchor, setAnchor] = useState(null);
-  const btnRef = useRef(null);
-  const handleToggle = () => {
-    const el = btnRef.current;
-    if (el) {
-      const rect = el.getBoundingClientRect();
-      setAnchor({ top: rect.bottom + 8, left: rect.left, width: rect.width });
-    }
-    setOpen((o) => !o);
+  // Replace with a round refresh button that forces a DB refetch
+  const handleRefresh = () => {
+    try {
+      localStorage.removeItem('law_entries');
+      sessionStorage.clear();
+    } catch {}
+    // Notify listeners to refresh from DB immediately
+    try { window.dispatchEvent(new Event('force-refresh-entries')); } catch {}
   };
   return (
-    <>
-      <button
-        ref={btnRef}
-        aria-label="Notifications"
-        className="icon-btn"
-        onClick={handleToggle}
-        title="Notifications"
-      >
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
-          <path d="M12 22a2 2 0 0 0 2-2h-4a2 2 0 0 0 2 2zm6-6V11a6 6 0 1 0-12 0v5l-2 2v1h16v-1l-2-2z"/>
-        </svg>
-      </button>
-      {open && (
-        <DashboardNotifications
-          onClose={() => setOpen(false)}
-          anchor={anchor}
-        />
-      )}
-    </>
+    <button
+      aria-label="Refresh from DB"
+      className="icon-btn"
+      onClick={handleRefresh}
+      title="Refresh from DB"
+      style={{ borderRadius: '9999px' }}
+    >
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+        <path d="M17.65 6.35A7.95 7.95 0 0 0 12 4V1L7 6l5 5V7a6 6 0 1 1-6 6H4a8 8 0 1 0 13.65-6.65z"/>
+      </svg>
+    </button>
   );
 }
 
 function App() {
   return (
-    <Router>
-      <Routes>
-        <Route path="/" element={<Dashboard />} />
-        <Route path="/dashboard" element={<Dashboard />} />
-        <Route path="/law-entry/:step" element={<LawEntryForm />} />
-        <Route path="/entry/:entryId" element={<EntryDetails />} />
-        <Route path="/entry/:entryId/edit" element={<EntryEdit />} />
-        <Route path="*" element={<Dashboard />} />
-      </Routes>
-    </Router>
+    <AuthProvider>
+      <Router>
+        <Routes>
+          <Route path="/" element={<Dashboard />} />
+          <Route path="/dashboard" element={<Dashboard />} />
+          <Route path="/law-entry/:step" element={<LawEntryForm />} />
+          <Route path="/entry/:entryId" element={<EntryDetails />} />
+          <Route path="/entry/:entryId/edit" element={<EntryEdit />} />
+          <Route path="*" element={<Dashboard />} />
+        </Routes>
+      </Router>
+    </AuthProvider>
   );
 }
 
@@ -1057,8 +1050,8 @@ function AppContent({ currentView: initialView = 'list', isEditing = false, form
         clearEntriesVector().then(async (resp) => {
           if (!resp?.success) console.warn('Vector clear all failed:', resp?.error);
           clearAllEntries();
-          // Refresh from DB
-          try { localStorage.removeItem('law_entries'); } catch {}
+          // Ensure cache is nuked and UI refetches
+          try { localStorage.removeItem('law_entries'); sessionStorage.clear(); } catch {}
           alert('All entries have been cleared from the database.');
         });
       } else {
