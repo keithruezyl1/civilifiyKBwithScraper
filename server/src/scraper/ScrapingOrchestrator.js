@@ -1,5 +1,7 @@
 import { DocumentScraper } from './DocumentScraper.js';
 import { Constitution1987Parser } from '../parsers/Constitution1987Parser.js';
+import ActsParser from '../parsers/ActsParser.js';
+import { ActsScraper } from './ActsScraper.js';
 import { Pool } from 'pg';
 
 /**
@@ -11,8 +13,10 @@ export class ScrapingOrchestrator {
     this.db = new Pool({ connectionString: dbConnectionString });
     this.scraper = new DocumentScraper(options.scraper);
     this.parsers = {
-      constitution_1987: new Constitution1987Parser()
+      constitution_1987: new Constitution1987Parser(),
+      acts: new ActsParser()
     };
+    this.actsScraper = new ActsScraper(dbConnectionString, options);
   }
 
   normalizePerEntry(parsed) {
@@ -159,6 +163,25 @@ export class ScrapingOrchestrator {
       return sessionId;
     } catch (error) {
       console.error('Failed to start session:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Process Acts from a year page URL
+   */
+  async processActsYear(sessionId, yearPageUrl) {
+    try {
+      console.log(`🚀 Processing Acts year page: ${yearPageUrl}`);
+      
+      // Use the ActsScraper for year-based scraping
+      const results = await this.actsScraper.scrapeYearActs(sessionId, yearPageUrl);
+      
+      console.log(`✅ Completed Acts processing. Results: ${results.length}`);
+      return results;
+      
+    } catch (error) {
+      console.error('Failed to process Acts year:', error);
       throw error;
     }
   }

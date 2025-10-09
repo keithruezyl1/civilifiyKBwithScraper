@@ -882,6 +882,17 @@ i foun.entry-list-container {
   color: white;
 }
 
+/* Released/unreleased mapping for KB entries */
+.status-released {
+  background: #16a34a; /* green-600 */
+  color: #ffffff;
+}
+
+.status-unreleased {
+  background: #6b7280; /* gray-500 */
+  color: #ffffff;
+}
+
 /* ===== MOBILE-FIRST RESPONSIVE DESIGN ===== */
 /* This section completely overrides desktop styles for mobile devices */
 

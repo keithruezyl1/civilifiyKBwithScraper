@@ -372,8 +372,9 @@ body {
   border: 1px solid rgba(255,255,255,0.3);
   color: #ffffff;
   backdrop-filter: blur(10px);
+  cursor: pointer;
 }
-.icon-btn:hover { background: rgba(255,255,255,0.2); border-color: rgba(255,255,255,0.5); }
+.icon-btn:hover { background: rgba(255,255,255,0.2); border-color: rgba(255,255,255,0.5); transform: translateY(-1px); box-shadow: 0 2px 8px rgba(0,0,0,0.15); }
 
 /* Notifications dropdown */
 .notif-dropdown {
@@ -422,6 +423,7 @@ body {
   transform: translateY(-1px);
   background: rgba(255,255,255,0.2);
   border-color: rgba(255,255,255,0.5);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.15);
 }
 
 .theme-toggle.theme-toggle--dark {
@@ -429,6 +431,13 @@ body {
   background: rgba(255,255,255,0.1);
   color: #ffffff;
   border-color: rgba(255,255,255,0.3);
+}
+
+.theme-toggle.theme-toggle--dark:hover {
+  transform: translateY(-1px);
+  background: rgba(255,255,255,0.2);
+  border-color: rgba(255,255,255,0.5);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.15);
 }
 
 /* Navigation */

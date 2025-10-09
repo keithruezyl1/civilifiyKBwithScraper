@@ -12,6 +12,8 @@ import Modal from './components/Modal/Modal';
 import LoadingModal from './components/Modal/LoadingModal';
 import { ImportJsonModal } from './components/ImportJsonModal';
 import ScrapeEntriesModal from './components/ScrapeEntriesModal';
+import ScrapeBatchesModal from './components/ScrapeBatchesModal';
+import { listScrapeBatches } from './services/kbApi';
 import ReleaseEntriesModal from './components/ReleaseEntriesModal';
 import { loadPlanFromJson, computeDayIndex, rowsForDay, getPlanDate, toISODate } from './lib/plan/planLoader';
 import { format } from 'date-fns';
@@ -140,6 +142,9 @@ function AppContent({ currentView: initialView = 'list', isEditing = false, form
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [entryToDelete, setEntryToDelete] = useState(null);
   const [incompleteEntries, setIncompleteEntries] = useState([]);
+  const [showScrapeBatches, setShowScrapeBatches] = useState(false);
+  const [showNoBatchesToast, setShowNoBatchesToast] = useState(false);
+  const [toastOpacity, setToastOpacity] = useState(0);
   const [yesterdayMode, setYesterdayMode] = useState(false);
   const [headerOpacity, setHeaderOpacity] = useState(1);
   const [planData, setPlanData] = useState(null);
@@ -1124,6 +1129,34 @@ function AppContent({ currentView: initialView = 'list', isEditing = false, form
           <span className="header-entries-count">{stats.totalEntries} entries</span>
         </div>
         <div className="header-actions">
+          <button
+            className="link-button"
+            onClick={async () => {
+              try {
+                const res = await listScrapeBatches();
+                const batches = Array.isArray(res?.batches) ? res.batches : [];
+                if (batches.length === 0) {
+                  setShowNoBatchesToast(true);
+                  setToastOpacity(0);
+                  setTimeout(() => setToastOpacity(1), 10); // smooth appear
+                  setTimeout(() => setToastOpacity(0), 1800); // start fade
+                  setTimeout(() => setShowNoBatchesToast(false), 2000);
+                } else {
+                  setShowScrapeBatches(true);
+                }
+              } catch (_) {
+                setShowNoBatchesToast(true);
+                setToastOpacity(0);
+                setTimeout(() => setToastOpacity(1), 10);
+                setTimeout(() => setToastOpacity(0), 1800);
+                setTimeout(() => setShowNoBatchesToast(false), 2000);
+              }
+            }}
+            title="View Scrape Batches"
+            style={{ textDecoration: 'underline', color: 'white' }}
+          >
+            View Scrape Batches
+          </button>
           {/* Inline notifications dropdown state */}
           <HeaderNotificationsButton />
           <button
@@ -1460,6 +1493,18 @@ function AppContent({ currentView: initialView = 'list', isEditing = false, form
           try { localStorage.setItem('lastScrapeCompleted', '1'); } catch {}
         }}
       />
+
+      {/* Scrape Batches Modal */}
+      <ScrapeBatchesModal
+        isOpen={showScrapeBatches}
+        onClose={() => setShowScrapeBatches(false)}
+      />
+
+      {showNoBatchesToast && (
+        <div style={{ position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', background: 'rgba(17,24,39,0.95)', color: 'white', padding: '12px 16px', borderRadius: 8, zIndex: 9999, transition: 'opacity 300ms ease', opacity: toastOpacity }}>
+          No Scrape Batches found
+        </div>
+      )}
 
       {/* Release Entries Modal */}
       <ReleaseEntriesModal

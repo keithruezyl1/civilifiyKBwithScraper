@@ -213,6 +213,42 @@ export async function fetchEntryById(entryId: string): Promise<any | null> {
   }
 }
 
+// Scrape batch APIs (live)
+const ORIGIN_BASE_SCRAPE = (process.env.REACT_APP_API_BASE || process.env.REACT_APP_VECTOR_API_URL || 'http://localhost:4000');
+const SCRAPE_BASE_URL = `${ORIGIN_BASE_SCRAPE.endsWith('/api') ? ORIGIN_BASE_SCRAPE : ORIGIN_BASE_SCRAPE + '/api'}/scraping`;
+
+export async function listScrapeBatches(): Promise<{ success: boolean; batches: any[] }> {
+  const resp = await fetch(`${SCRAPE_BASE_URL}/batches`, { cache: 'no-store' });
+  const json = await resp.json();
+  if (!resp.ok) throw new Error(json?.error || 'Failed to list batches');
+  return json;
+}
+
+export async function saveScrapeBatch(sessionId: string, description: string): Promise<{ success: boolean }>{
+  const resp = await fetch(`${SCRAPE_BASE_URL}/session/${encodeURIComponent(sessionId)}/save-batch`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ description })
+  });
+  const json = await resp.json().catch(() => ({}));
+  if (!resp.ok) throw new Error(json?.error || 'Failed to save batch');
+  return json;
+}
+
+export async function generateEntriesForBatch(sessionId: string): Promise<any>{
+  const resp = await fetch(`${SCRAPE_BASE_URL}/batch/${encodeURIComponent(sessionId)}/generate-entries`, { method: 'POST' });
+  const json = await resp.json().catch(() => ({}));
+  if (!resp.ok) throw new Error(json?.error || 'Failed to generate entries');
+  return json;
+}
+
+export async function deleteScrapeBatch(sessionId: string): Promise<{ success: boolean }>{
+  const resp = await fetch(`${SCRAPE_BASE_URL}/batch/${encodeURIComponent(sessionId)}`, { method: 'DELETE' });
+  const json = await resp.json().catch(() => ({}));
+  if (!resp.ok) throw new Error(json?.error || 'Failed to delete batch');
+  return json;
+}
+
 // Server lexical search (feature-flag-ready consumer)
 export async function serverSearch(params: {
   query: string;

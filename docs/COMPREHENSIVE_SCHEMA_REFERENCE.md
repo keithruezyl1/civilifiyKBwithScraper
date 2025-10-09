@@ -10,6 +10,23 @@ This document provides a complete reference for all entry types, their subtypes,
 5. [Subtype-Specific Field Schemas](#subtype-specific-field-schemas)
 6. [Field Validation Rules](#field-validation-rules)
 7. [Database Schema Mapping](#database-schema-mapping)
+8. Scrape Batches
+
+### Scrape Batches
+
+- Scraping runs are persisted as batches using `scraping_sessions`.
+- New fields:
+  - `scraping_sessions.description` (TEXT): short human description when saving a batch.
+  - `scraping_sessions.is_saved` (BOOLEAN, default false): marks a session as a saved batch.
+- Documents parsed during a run are stored in `scraped_documents` linked by `session_id`.
+- UI:
+  - After scrape completes, click “Save as Batch” and add a short description.
+  - Header link “View Scrape Batches” opens a modal listing saved batches with: Batch ID, description, count, and CTAs “Generate Entries” and “Delete Batch”.
+- API endpoints:
+  - `POST /api/scraping/session/:sessionId/save-batch` { description }
+  - `GET /api/scraping/batches`
+  - `POST /api/scraping/batch/:sessionId/generate-entries` (alias)
+  - `DELETE /api/scraping/batch/:sessionId` (blocked if any `kb_entries.provenance.session_id` exists)
 
 ---
 

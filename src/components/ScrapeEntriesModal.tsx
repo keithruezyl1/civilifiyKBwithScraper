@@ -50,8 +50,42 @@ export default function ScrapeEntriesModal({ isOpen, onClose, onSuccess }: Scrap
     skipped: 0,
     errors: 0
   });
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [savingBatch, setSavingBatch] = useState(false);
+  const [batchDesc, setBatchDesc] = useState('');
+  const [showSaveBatchPrompt, setShowSaveBatchPrompt] = useState(false);
+  const [showBatchSavedModal, setShowBatchSavedModal] = useState(false);
   const [showConfetti, setShowConfetti] = useState(false);
+
+  // Handle clearing session and resetting modal
+  const handleConfirmClear = async () => {
+    try {
+      // Non-destructive: only clear UNSAVED sessions/documents
+      const r = await fetch(`${API}/api/scraping/clear-unsaved`, { method: 'POST' });
+      const d = await r.json();
+      
+      // Clear localStorage
+      localStorage.removeItem('lastScrapeCompleted');
+      
+      // Reset all modal state
+      setUrl('');
+      setStatus(null);
+      setProgress(0);
+      setSessionId(null);
+      setIsScraping(false);
+      setGenerationResult(null);
+      setShowSuccessModal(false);
+      setShowSuccessView(false);
+      setShowConfirmModal(false);
+      setNotepadDocs([]);
+      setShowNotepad(false);
+      
+      console.log(`Cleared ${d.deleted_count || 0} scraped documents and sessions.`);
+    } catch (e) {
+      alert('Failed to clear scraped data.');
+    }
+  };
 
   // Utilities for normalization
   const numberToRoman = (num: number) => {
@@ -68,11 +102,21 @@ export default function ScrapeEntriesModal({ isOpen, onClose, onSuccess }: Scrap
     const md = d?.metadata || {};
     const artNum = parseInt(md.articleNumber, 10);
     const secNum = md.sectionNumber;
+    const actNum = md.actNumber;
     const body = (d?.extracted_text || '').trim();
     
     // Handle preamble case
     if (md.preamble) {
       return `PREAMBLE\n${body}`;
+    }
+    
+    // Handle Acts documents
+    if (actNum) {
+      if (secNum) {
+        return `ACT ${actNum}, SECTION ${secNum}\n${body}`;
+      } else {
+        return `ACT ${actNum}\n${body}`;
+      }
     }
     
     if (!artNum || !secNum || !body) return null;
@@ -108,15 +152,18 @@ export default function ScrapeEntriesModal({ isOpen, onClose, onSuccess }: Scrap
       const metadata = doc.metadata || {};
       const articleNum = metadata.articleNumber?.toString() || '';
       const sectionNum = metadata.sectionNumber?.toString() || '';
+      const actNum = metadata.actNumber?.toString() || '';
       const topics = (metadata.topics || []).join(' ').toLowerCase();
       
       return title.includes(searchTerm) ||
              text.includes(searchTerm) ||
              articleNum.includes(searchTerm) ||
              sectionNum.includes(searchTerm) ||
+             actNum.includes(searchTerm) ||
              topics.includes(searchTerm) ||
              `article ${articleNum}`.includes(searchTerm) ||
-             `section ${sectionNum}`.includes(searchTerm);
+             `section ${sectionNum}`.includes(searchTerm) ||
+             `act ${actNum}`.includes(searchTerm);
     });
   };
 
@@ -249,8 +296,19 @@ export default function ScrapeEntriesModal({ isOpen, onClose, onSuccess }: Scrap
   // Clear data when modal opens
   useEffect(() => {
     if (isOpen) {
-      // Preserve previously scraped/pending data; do not auto-clear
+      // Reset to initial state unless a scrape is actively running
       setNotepadSearchQuery('');
+      if (!isScraping) {
+        setUrl('');
+        setStatus(null);
+        setProgress(0);
+        setSessionId(null);
+        setGenerationResult(null);
+        setShowSuccessModal(false);
+        setShowSuccessView(false);
+        setNotepadDocs([]);
+        setShowNotepad(false);
+      }
     }
   }, [isOpen]);
 
@@ -368,7 +426,7 @@ export default function ScrapeEntriesModal({ isOpen, onClose, onSuccess }: Scrap
         },
         body: JSON.stringify({
           url: url.trim(),
-          category: 'constitution_1987',
+          category: url.includes('/acts/') ? 'acts' : 'constitution_1987',
           operator: 'user'
         }),
       });
@@ -385,16 +443,16 @@ export default function ScrapeEntriesModal({ isOpen, onClose, onSuccess }: Scrap
 
       setSessionId(startData.sessionId);
 
-      // Process the URL
-      const processResponse = await fetch(`${API}/api/scraping/process`, {
+      // Process the URL - use different endpoint for Acts
+      const isActsUrl = url.includes('/acts/');
+      const processResponse = await fetch(`${API}/api/scraping/${isActsUrl ? 'process-acts' : 'process'}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
           sessionId: startData.sessionId,
-          url: url.trim(),
-          parserType: 'constitution_1987'
+          ...(isActsUrl ? { yearPageUrl: url.trim() } : { url: url.trim(), parserType: 'constitution_1987' })
         }),
       });
 
@@ -549,7 +607,11 @@ export default function ScrapeEntriesModal({ isOpen, onClose, onSuccess }: Scrap
             <div className="progress-section">
               {status?.status === 'running' ? (
                 <div className="spinner-wrapper">
-                  <div className="spinner" />
+                  <div className="caterpillar" aria-label="Loading">
+                    <span className="dot" />
+                    <span className="dot" />
+                    <span className="dot" />
+                  </div>
                   <div className="spinner-text">Scraping in progress...</div>
                   <div className="progress-stats">
                     <div className="stat">
@@ -606,7 +668,7 @@ export default function ScrapeEntriesModal({ isOpen, onClose, onSuccess }: Scrap
             )}
 
             {status?.status === 'completed' && !isGenerating && (
-              <div className="completion-message">
+                <div className="completion-message">
                 <Confetti show={showConfetti} onComplete={() => setShowConfetti(false)} />
                 <div style={{
                   background: 'linear-gradient(135deg, #22c55e 0%, #16a34a 40%, #0ea5e9 100%)',
@@ -618,6 +680,16 @@ export default function ScrapeEntriesModal({ isOpen, onClose, onSuccess }: Scrap
                 }}>
                   <div style={{ fontSize: 18, fontWeight: 600, marginBottom: 6 }}>Scraping Completed</div>
                   <div style={{ opacity: 0.95 }}>Processed {status.parsed_documents} of {status.total_documents} documents{status.failed_documents > 0 ? ` • ${status.failed_documents} failed` : ''}.</div>
+                  {/* Inline Save as Batch inside gradient card */}
+                  <div style={{ marginTop: 8 }}>
+                    <button
+                      type="button"
+                      onClick={() => setShowSaveBatchPrompt(true)}
+                      style={{ background: 'transparent', border: 'none', color: '#ffffff', textDecoration: 'underline', cursor: 'pointer', fontWeight: 700 }}
+                    >
+                      Save as Batch
+                    </button>
+                  </div>
                 </div>
 
                 {generationResult && (
@@ -663,16 +735,18 @@ export default function ScrapeEntriesModal({ isOpen, onClose, onSuccess }: Scrap
                   </div>
                 )}
 
-                <div className="modal-actions" style={{ marginTop: 0, display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'nowrap' }}>
+                <div className="modal-actions" style={{ marginTop: 0, display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'nowrap', justifyContent: 'center', flexShrink: 0 }}>
                   <button
                     type="button"
                     className="btn btn-warning"
+                    style={{ minWidth: '120px', padding: '6px 12px', fontSize: '0.9rem' }}
                     onClick={async () => {
                       try {
                         if (!sessionId) return;
-                        const resp = await fetch(`${API}/api/scraping/session/${sessionId}/documents`);
+                        const resp = await fetch(`${API}/api/scraping/session/${sessionId}/documents?t=${Date.now()}`);
                         const data = await resp.json();
                         const docs = Array.isArray(data?.documents) ? data.documents : [];
+                        
                         let mapped = docs.map((d:any, i:number) => {
                           let text = d?.extracted_text || '';
                           if (normalizedView) {
@@ -680,7 +754,7 @@ export default function ScrapeEntriesModal({ isOpen, onClose, onSuccess }: Scrap
                             if (!norm) return null;
                             text = norm;
                           }
-                          return ({ index: i, title: d?.metadata?.title || `Article ${d?.metadata?.articleNumber} - Section ${d?.metadata?.sectionNumber}`, metadata: d?.metadata, extracted_text: text });
+                          return ({ index: i, title: d?.metadata?.title || `Act ${d?.metadata?.actNumber} - Section ${d?.metadata?.sectionNumber}`, metadata: d?.metadata, extracted_text: text });
                         }).filter(Boolean) as Array<{index:number,title?:string,metadata:any,extracted_text:string}>;
                         setNotepadDocs(mapped);
                         setShowNotepad(true);
@@ -689,46 +763,26 @@ export default function ScrapeEntriesModal({ isOpen, onClose, onSuccess }: Scrap
                       }
                     }}
                   >
-                    View Scraped Entries
+                    View Entries
                   </button>
                   <button
                     type="button"
                     className="btn btn-success"
+                    style={{ minWidth: '120px', padding: '6px 12px', fontSize: '0.9rem' }}
                     disabled={isGenerating || !sessionId}
                     onClick={generateEntries}
                   >
-                    {isGenerating ? 'Generating Entries…' : 'Generate Entries'}
+                    {isGenerating ? 'Generating…' : 'Generate'}
                   </button>
                   {/* Go to Dashboard button removed per request */}
                   <button
                     type="button"
-                    className="btn btn-orange"
-                    onClick={() => setShowSuccessView(false)}
-                  >
-                    Run Another Scrape
-                  </button>
-                  <button
-                    type="button"
                     className="btn btn-danger"
-                    onClick={async () => {
-                      try {
-                        const r = await fetch(`${API}/api/scraping/clear-scraped-data`, { method: 'POST' });
-                        const d = await r.json();
-                        alert(`Cleared ${d.deleted_count || 0} scraped documents and sessions. Generated KB entries were preserved.`);
-                        setUrl('');
-                        setStatus(null);
-                        setProgress(0);
-                        setSessionId(null);
-                        setIsScraping(false);
-                        setGenerationResult(null);
-                        setShowSuccessModal(false);
-                        setShowSuccessView(false);
-                      } catch (e) {
-                        alert('Failed to clear scraped data.');
-                      }
-                    }}
+                    style={{ minWidth: '120px', padding: '6px 12px', fontSize: '0.9rem' }}
+                    onClick={() => setShowConfirmModal(true)}
+                    title="Start a new scrape (saved batches are preserved)"
                   >
-                    Clear Scraped Data
+                    Run Another
                   </button>
                 </div>
               </div>
@@ -1032,14 +1086,12 @@ export default function ScrapeEntriesModal({ isOpen, onClose, onSuccess }: Scrap
           gap: 0.5rem; 
         }
 
-        .spinner { 
-          width: 36px; 
-          height: 36px; 
-          border: 4px solid #e5e7eb; 
-          border-top-color: #f59e0b; /* orange */
-          border-radius: 50%; 
-          animation: spin 1s linear infinite; 
-        }
+        /* Caterpillar loader */
+        .caterpillar { display: flex; gap: 8px; align-items: flex-end; height: 24px; }
+        .caterpillar .dot { width: 10px; height: 10px; background: #ff8c42; border-radius: 50%; animation: caterpillar-bounce 1.2s ease-in-out infinite; box-shadow: 0 0 6px rgba(255,140,66,0.6); }
+        .caterpillar .dot:nth-child(2) { animation-delay: 0.15s; }
+        .caterpillar .dot:nth-child(3) { animation-delay: 0.3s; }
+        @keyframes caterpillar-bounce { 0%, 60%, 100% { transform: translateY(0); } 30% { transform: translateY(-8px); } }
 
         .spinner-text { 
           color: #22c55e; /* green */
@@ -1446,6 +1498,123 @@ export default function ScrapeEntriesModal({ isOpen, onClose, onSuccess }: Scrap
                 onClick={regenerateEntries}
               >
                 Regenerate Entries
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Confirmation Modal */}
+      {showConfirmModal && (
+        <div className="modal-overlay" style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10000 }}>
+          <div className="modal-content" style={{ background: '#111827', color: '#e5e7eb', border: '1px solid #1f2937', borderRadius: 16, padding: 24, width: 420, boxShadow: '0 20px 40px rgba(0,0,0,0.35)', textAlign: 'center' }}>
+            <h3 style={{ margin: '0 0 8px 0' }}>You're deleting this scraping session</h3>
+            <p style={{ margin: '0 0 16px 0', color: '#cbd5e1' }}>All recently scraped documents will be removed. Confirm?</p>
+            <div style={{ display: 'flex', gap: 12, justifyContent: 'center' }}>
+              <button
+                className="btn"
+                style={{ minWidth: 110, background: 'transparent', color: '#b91c1c', border: '2px solid #b91c1c', borderRadius: 6, padding: '8px 16px' }}
+                onClick={() => setShowConfirmModal(false)}
+                onMouseEnter={(e) => { e.currentTarget.style.background = '#b91c1c'; e.currentTarget.style.color = '#ffffff'; }}
+                onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#b91c1c'; }}
+              >
+                Go Back
+              </button>
+              <button className="btn btn-danger" style={{ minWidth: 110 }} onClick={handleConfirmClear}>Confirm</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Save as Batch Prompt */}
+      {showSaveBatchPrompt && (
+        <div className="modal-overlay" style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10000 }}>
+          <div className="modal-content" style={{ background: '#111827', color: '#e5e7eb', border: '1px solid #374151', borderRadius: 12, padding: 20, width: 420 }}>
+            <h3 style={{ marginTop: 0, marginBottom: 8 }}>Add description</h3>
+            <input
+              type="text"
+              placeholder="Short description"
+              value={batchDesc}
+              onChange={(e) => setBatchDesc(e.target.value)}
+              style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: '1px solid #4b5563', background: '#0b1220', color: '#e5e7eb' }}
+            />
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 14 }}>
+              <button
+                className="btn"
+                style={{ minWidth: 130, background: 'transparent', color: '#b91c1c', border: '2px solid #b91c1c', borderRadius: 6, padding: '8px 16px' }}
+                onClick={() => setShowSaveBatchPrompt(false)}
+                onMouseEnter={(e) => { e.currentTarget.style.background = '#b91c1c'; e.currentTarget.style.color = '#ffffff'; }}
+                onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#b91c1c'; }}
+              >
+                Go back
+              </button>
+              <button
+                className="btn btn-success"
+                style={{ minWidth: 130 }}
+                disabled={!sessionId || !batchDesc.trim() || savingBatch}
+                onClick={async () => {
+                  if (!sessionId || !batchDesc.trim()) return;
+                  try {
+                    setSavingBatch(true);
+                    const base = (process.env.REACT_APP_API_BASE || process.env.REACT_APP_VECTOR_API_URL || 'http://localhost:4000');
+                    const url = `${base.endsWith('/api') ? base : base + '/api'}/scraping/session/${encodeURIComponent(sessionId)}/save-batch`;
+                    const resp = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ description: batchDesc.trim() }) });
+                    const json = await resp.json().catch(() => ({}));
+                    if (!resp.ok) throw new Error(json?.error || 'Failed to save batch');
+                    // Reset modal to initial state so user can enter another URL
+                    setShowSaveBatchPrompt(false);
+                    setBatchDesc('');
+                    setIsScraping(false);
+                    setStatus(null);
+                    setProgress(0);
+                    setSessionId(null);
+                    setGenerationResult(null);
+                    setShowSuccessModal(false);
+                    setShowSuccessView(false);
+                    setNotepadDocs([]);
+                    setShowNotepad(false);
+                    setShowBatchSavedModal(true);
+                  } catch (e:any) {
+                    alert(e?.message || 'Failed to save batch');
+                  } finally {
+                    setSavingBatch(false);
+                  }
+                }}
+              >
+                {savingBatch ? 'Saving…' : 'Save as Batch'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Batch Saved Success Modal */}
+      {showBatchSavedModal && (
+        <div className="modal-overlay" style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10000 }}>
+          <div className="modal-content" style={{ background: '#111827', border: '1px solid #1f2937', color: '#e5e7eb', borderRadius: 16, padding: 24, maxWidth: 420, width: '90%', textAlign: 'center', boxShadow: '0 20px 40px rgba(0,0,0,0.35)' }}>
+            <h3 style={{ marginTop: 0, marginBottom: 6 }}>Batch Saved</h3>
+            <p style={{ color: '#cbd5e1', marginTop: 2 }}>Your scraped documents were saved as a batch. You can now enter another URL.</p>
+            <div style={{ marginTop: 16 }}>
+              <button
+                className="btn btn-success"
+                style={{ minWidth: 140, background: '#16a34a', color: '#ffffff', border: 'none' }}
+                onClick={() => {
+                  setShowBatchSavedModal(false);
+                  // Ensure modal state is fully reset for a fresh URL input
+                  setIsScraping(false);
+                  setStatus(null);
+                  setProgress(0);
+                  setSessionId(null);
+                  setGenerationResult(null);
+                  setShowSuccessModal(false);
+                  setShowSuccessView(false);
+                  setNotepadDocs([]);
+                  setShowNotepad(false);
+                  try { localStorage.setItem('lastScrapeCompleted', '0'); } catch {}
+                  setUrl('');
+                }}
+              >
+                OK
               </button>
             </div>
           </div>

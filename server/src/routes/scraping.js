@@ -15,7 +15,7 @@ const db = new Pool({ connectionString: process.env.DATABASE_URL });
  * Generate stable entry ID from metadata
  */
 function generateEntryId(metadata, category) {
-  const { articleNumber, sectionNumber, preamble } = metadata || {};
+  const { articleNumber, sectionNumber, preamble, actNumber, sectionNumber: actSectionNumber } = metadata || {};
   
   if (category === 'constitution_1987') {
     if (preamble) {
@@ -33,6 +33,15 @@ function generateEntryId(metadata, category) {
     }
   }
   
+  if (category === 'acts') {
+    if (actNumber && actSectionNumber) {
+      return `ACT-${actNumber}-SEC${actSectionNumber}`;
+    }
+    if (actNumber) {
+      return `ACT-${actNumber}`;
+    }
+  }
+  
   // Fallback to hash-based ID
   const content = JSON.stringify(metadata);
   const hash = require('crypto').createHash('md5').update(content).digest('hex').substring(0, 8);
@@ -43,7 +52,7 @@ function generateEntryId(metadata, category) {
  * Generate canonical citation from metadata
  */
 function generateCanonicalCitation(metadata, category) {
-  const { articleNumber, sectionNumber, preamble, title } = metadata || {};
+  const { articleNumber, sectionNumber, preamble, title, actNumber, sectionNumber: actSectionNumber, year } = metadata || {};
   
   if (category === 'constitution_1987') {
     if (preamble) {
@@ -57,6 +66,15 @@ function generateCanonicalCitation(metadata, category) {
     }
     if (title && title.toLowerCase().includes('ordinance')) {
       return '1987 Constitution, Ordinance';
+    }
+  }
+  
+  if (category === 'acts') {
+    if (actNumber && actSectionNumber) {
+      return `Act No. ${actNumber}, Section ${actSectionNumber} (${year})`;
+    }
+    if (actNumber) {
+      return `Act No. ${actNumber} (${year})`;
     }
   }
   
@@ -248,6 +266,49 @@ router.post('/clear-scraped-data', async (_req, res) => {
 });
 
 /**
+ * Clear only UNSAVED scraped data (preserve saved batches)
+ * - Deletes scraped_documents/inferences for sessions not marked saved
+ * - Preserves sessions with is_saved=true or with a description present
+ */
+router.post('/clear-unsaved', async (_req, res) => {
+  try {
+    // Determine column availability
+    const colRes = await db.query(`select column_name from information_schema.columns where table_name = 'scraping_sessions'`);
+    const cols = new Set(colRes.rows.map(r => r.column_name));
+    const hasDescription = cols.has('description');
+    const hasIsSaved = cols.has('is_saved');
+
+    let sessionIds = [];
+    if (hasDescription || hasIsSaved) {
+      // Select unsaved sessions
+      const whereExpr = [
+        hasIsSaved ? '(is_saved = false or is_saved is null)' : null,
+        hasDescription ? '(description is null)' : null
+      ].filter(Boolean).join(' AND ');
+      const sres = await db.query(`select id from scraping_sessions where ${whereExpr}`);
+      sessionIds = sres.rows.map(r => r.id);
+    } else {
+      // Fallback: schema doesn't support saved batches; do NOT delete anything
+      sessionIds = [];
+    }
+
+    if (sessionIds.length === 0) {
+      return res.json({ success: true, cleared_sessions: 0, message: 'No unsaved sessions to clear' });
+    }
+
+    // Delete documents and inferences for these sessions
+    const delInf = await db.query(`delete from gpt_inferences where scraped_document_id in (select id from scraped_documents where session_id = any($1::uuid[])) returning id`, [sessionIds]);
+    const delDocs = await db.query(`delete from scraped_documents where session_id = any($1::uuid[]) returning id`, [sessionIds]);
+    const delSess = await db.query(`delete from scraping_sessions where id = any($1::uuid[]) returning id`, [sessionIds]);
+
+    res.json({ success: true, cleared_sessions: delSess.rows.length, cleared_documents: delDocs.rows.length, cleared_inferences: delInf.rows.length });
+  } catch (error) {
+    console.error('Failed to clear unsaved scraped data:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
  * Delete ALL KB entries created by scraping (both unreleased and released)
  */
 router.post('/clear-kb-entries-scraped', async (_req, res) => {
@@ -358,6 +419,48 @@ router.post('/process', async (req, res) => {
 });
 
 /**
+ * Process Acts from a year page URL
+ */
+router.post('/process-acts', async (req, res) => {
+  try {
+    const { sessionId, yearPageUrl } = req.body;
+    
+    if (!sessionId || !yearPageUrl) {
+      return res.status(400).json({ 
+        error: 'Missing required fields: sessionId, yearPageUrl' 
+      });
+    }
+    
+    // Validate URL format
+    if (!/\/act\d{4}\/act\d{4}\.html$/.test(yearPageUrl)) {
+      return res.status(400).json({ 
+        error: 'Invalid year page URL format. Expected: /actYYYY/actYYYY.html' 
+      });
+    }
+    
+    console.log(`🔄 Processing Acts year page: ${yearPageUrl}`);
+    
+    const result = await orchestrator.processActsYear(sessionId, yearPageUrl);
+    
+    res.json({
+      success: true,
+      message: 'Acts year page processed successfully',
+      result: {
+        totalActs: result.length,
+        acts: result
+      }
+    });
+    
+  } catch (error) {
+    console.error('Process Acts error:', error);
+    res.status(500).json({ 
+      error: 'Failed to process Acts year page',
+      details: error.message 
+    });
+  }
+});
+
+/**
  * Get session status
  */
 router.get('/session/:sessionId/status', async (req, res) => {
@@ -390,6 +493,13 @@ router.get('/session/:sessionId/status', async (req, res) => {
 router.get('/session/:sessionId/documents', async (req, res) => {
   try {
     const { sessionId } = req.params;
+    
+    // Prevent caching
+    res.set({
+      'Cache-Control': 'no-cache, no-store, must-revalidate',
+      'Pragma': 'no-cache',
+      'Expires': '0'
+    });
     
     const documents = await orchestrator.getSessionDocuments(sessionId);
     
@@ -427,6 +537,136 @@ router.post('/session/:sessionId/complete', async (req, res) => {
       error: 'Failed to complete session',
       details: error.message 
     });
+  }
+});
+
+/**
+ * Save a scraping session as a named batch
+ */
+router.post('/session/:sessionId/save-batch', async (req, res) => {
+  try {
+    const { sessionId } = req.params;
+    const { description } = req.body || {};
+    if (!description || String(description).trim().length === 0) {
+      return res.status(400).json({ error: 'Description is required' });
+    }
+
+    // Ensure session exists
+    const sres = await db.query('select id from scraping_sessions where id = $1', [sessionId]);
+    if (!sres.rows.length) return res.status(404).json({ error: 'Session not found' });
+
+    // Check which columns exist to be migration-safe
+    const colRes = await db.query(
+      `select column_name from information_schema.columns where table_name = 'scraping_sessions'`
+    );
+    const cols = new Set(colRes.rows.map(r => r.column_name));
+    const hasDescription = cols.has('description');
+    const hasIsSaved = cols.has('is_saved');
+
+    if (hasDescription) {
+      const sets = [];
+      const params = [sessionId, String(description).trim()];
+      sets.push('description = $2');
+      if (hasIsSaved) {
+        sets.push('is_saved = true');
+      }
+      sets.push('updated_at = now()');
+      await db.query(`update scraping_sessions set ${sets.join(', ')} where id = $1`, params);
+    } else {
+      // Fallback to notes column if description not present
+      await db.query(
+        `update scraping_sessions set notes = coalesce(notes,'') || $2, updated_at = now() where id = $1`,
+        [sessionId, `\n[batch] ${String(description).trim()}`]
+      );
+    }
+
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to save batch', details: error.message });
+  }
+});
+
+/**
+ * List saved scrape batches with counts
+ */
+router.get('/batches', async (_req, res) => {
+  try {
+    res.set({
+      'Cache-Control': 'no-cache, no-store, must-revalidate',
+      'Pragma': 'no-cache',
+      'Expires': '0'
+    });
+    // Check columns to build a compatible query
+    const colRes = await db.query(
+      `select column_name from information_schema.columns where table_name = 'scraping_sessions'`
+    );
+    const cols = new Set(colRes.rows.map(r => r.column_name));
+    const hasDescription = cols.has('description');
+    const hasIsSaved = cols.has('is_saved');
+
+    const descriptionExpr = hasDescription ? 's.description' : "null";
+    const notesExpr = cols.has('notes') ? 's.notes' : 'null';
+    const whereExpr = hasIsSaved
+      ? '(s.is_saved = true or ' + (hasDescription ? 's.description is not null' : 's.notes is not null') + ')'
+      : (hasDescription ? 's.description is not null' : 's.notes is not null');
+
+    const result = await db.query(`
+      select s.id, s.category, s.root_url, ${descriptionExpr} as description, ${notesExpr} as notes, s.created_at, s.updated_at,
+             coalesce(count(d.id),0) as total_documents,
+             coalesce(count(nullif(d.parse_status <> 'parsed', true)), 0) as parsed_documents
+        from scraping_sessions s
+        left join scraped_documents d on d.session_id = s.id
+       where ${whereExpr}
+       group by s.id
+       order by s.created_at desc
+       limit 100
+    `);
+    // Fallback: if description is null and notes exist, map notes to description prefix
+    const rows = result.rows.map(r => ({
+      ...r,
+      description: r.description || r.notes || null
+    }));
+    res.json({ success: true, batches: rows });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to list batches', details: error.message });
+  }
+});
+
+/**
+ * Alias: generate entries for a saved batch (session)
+ */
+router.post('/batch/:sessionId/generate-entries', async (req, res) => {
+  req.params.sessionId = req.params.sessionId; // passthrough
+  return router.handle({ ...req, url: `/session/${req.params.sessionId}/generate-entries`, method: 'POST' }, res);
+});
+
+/**
+ * Delete a saved batch. Guard: do not remove if any kb_entries provenance points to session
+ */
+router.delete('/batch/:sessionId', async (req, res) => {
+  try {
+    const { sessionId } = req.params;
+
+    // Check if session exists
+    const sres = await db.query('select id from scraping_sessions where id = $1', [sessionId]);
+    if (!sres.rows.length) return res.status(404).json({ error: 'Batch not found' });
+
+    // Guard: do any entries reference this session?
+    const eres = await db.query(
+      `select count(1) as cnt from kb_entries where provenance->>'session_id' = $1`,
+      [sessionId]
+    );
+    const count = Number(eres.rows[0]?.cnt || 0);
+    if (count > 0) {
+      return res.status(409).json({ error: 'Batch has generated entries; cannot delete' });
+    }
+
+    // Delete documents then session (documents cascade also handles this)
+    await db.query('delete from scraped_documents where session_id = $1', [sessionId]);
+    await db.query('delete from scraping_sessions where id = $1', [sessionId]);
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to delete batch', details: error.message });
   }
 });
 
@@ -504,6 +744,10 @@ router.post('/session/:sessionId/generate-entries', async (req, res) => {
       case 'constitution_1987':
         entryType = 'constitution_provision';
         entrySubtype = 'constitution_1987';
+        break;
+      case 'acts':
+        entryType = 'statute_section';
+        entrySubtype = 'act';
         break;
       default:
         entryType = 'constitution_provision';

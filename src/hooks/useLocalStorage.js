@@ -74,6 +74,7 @@ export const useLocalStorage = () => {
         const rows = await fetchAllEntriesFromDb();
         const mapped = Array.isArray(rows) ? rows.map((x) => ({ ...x, id: x.entry_id })) : [];
         setEntries(mapped);
+        try { window.dispatchEvent(new Event('entries-refreshed')); } catch {}
       } catch {}
     };
     const onClear = () => setEntries([]);
