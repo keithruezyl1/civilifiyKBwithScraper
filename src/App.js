@@ -24,6 +24,14 @@ import { fetchEntryById } from './services/kbApi';
 // Plans API removed: we now load from bundled JSON
 import ChatModal from './components/kb/ChatModal';
 import { AuthProvider } from './contexts/AuthContext';
+import { BackgroundProcessProvider, useBackgroundProcess } from './contexts/BackgroundProcessContext';
+import { ToastProvider } from './contexts/ToastContext';
+import { ProcessStatus } from './components/ProcessStatus/ProcessStatus';
+import { Toast } from './components/Toast/Toast';
+import { useProcessPolling } from './hooks/useProcessPolling';
+import { Plus, Upload, Download, MessageCircle, FileDown, Trash2 } from 'lucide-react';
+import './components/ProcessStatus/ProcessStatus.css';
+import './components/Toast/Toast.css';
 // Authentication removed - no login required, but EntryView still needs AuthProvider
 const API = process.env.REACT_APP_API_BASE || 'http://localhost:4000';
 
@@ -52,7 +60,14 @@ function HeaderNotificationsButton() {
   );
 }
 
-function App() {
+// Wrapper component that uses the background process hooks
+function AppContentWrapper() {
+  useProcessPolling(); // Start polling for background processes
+  
+  return <AppMain />;
+}
+
+function AppMain() {
   return (
     <AuthProvider>
       <Router>
@@ -95,6 +110,7 @@ function EntryEdit() {
 }
 
 function AppContent({ currentView: initialView = 'list', isEditing = false, formStep = 1, selectedEntryId: initialEntryId = null, importedData = null }) {
+  const { addProcess } = useBackgroundProcess();
   const navigate = useNavigate();
   const location = useLocation();
   
@@ -159,6 +175,7 @@ function AppContent({ currentView: initialView = 'list', isEditing = false, form
   const [showImportLoadingModal, setShowImportLoadingModal] = useState(false);
   const [showImportJsonModal, setShowImportJsonModal] = useState(false);
   const [showScrapeModal, setShowScrapeModal] = useState(false);
+  const [currentScrapeSessionId, setCurrentScrapeSessionId] = useState(null);
   const [showReleaseModal, setShowReleaseModal] = useState(false);
   const [draftEntries, setDraftEntries] = useState([]);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
@@ -270,7 +287,7 @@ function AppContent({ currentView: initialView = 'list', isEditing = false, form
   })();
 
   // Get entries from useLocalStorage hook
-  const { entries, loading, error, clearError, addEntry, updateEntry, deleteEntry, getEntryById, getEntryByEntryId, searchEntries, exportEntries, exportSingleEntry, importEntries, clearAllEntries, getStorageStats, getAllTeamProgress, getYesterdayTeamProgress, updateProgressForEntry, checkDailyCompletion } = useLocalStorage();
+  const { entries, setEntries, loading, error, clearError, addEntry, updateEntry, deleteEntry, getEntryById, getEntryByEntryId, searchEntries, exportEntries, exportSingleEntry, importEntries, clearAllEntries, getStorageStats, getAllTeamProgress, getYesterdayTeamProgress, updateProgressForEntry, checkDailyCompletion } = useLocalStorage();
 
   // Function to check incomplete entries from yesterday
   const checkIncompleteEntries = useCallback(() => {
@@ -1059,6 +1076,26 @@ function AppContent({ currentView: initialView = 'list', isEditing = false, form
           try { localStorage.removeItem('law_entries'); sessionStorage.clear(); } catch {}
           alert('All entries have been cleared from the database.');
         });
+      } else if (clearOption === 'unreleased') {
+        // Clear only unreleased entries
+        clearEntriesVector(null, 'unreleased').then(async (resp) => {
+          if (!resp?.success) console.warn('Vector clear unreleased failed:', resp?.error);
+          // Update UI list to remove unreleased entries
+          const remaining = entries.filter(entry => entry.status === 'released');
+          setEntries(remaining);
+          try { localStorage.removeItem('law_entries'); } catch {}
+          alert('Unreleased entries have been cleared from the database.');
+        });
+      } else if (clearOption === 'released') {
+        // Clear only released entries
+        clearEntriesVector(null, 'released').then(async (resp) => {
+          if (!resp?.success) console.warn('Vector clear released failed:', resp?.error);
+          // Update UI list to remove released entries
+          const remaining = entries.filter(entry => entry.status !== 'released');
+          setEntries(remaining);
+          try { localStorage.removeItem('law_entries'); } catch {}
+          alert('Released entries have been cleared from the database.');
+        });
       } else {
         const today = new Date().toISOString().split('T')[0];
         clearEntriesVector(today).then(async (resp) => {
@@ -1191,6 +1228,7 @@ function AppContent({ currentView: initialView = 'list', isEditing = false, form
             className="btn-primary"
             disabled={currentView === 'form' || !hasPlan || isCreatingEntry}
           >
+            <Plus size={18} style={{ marginRight: '8px' }} />
             {isCreatingEntry ? 'Loading...' : 'Create New Entry'}
           </button>
           <button 
@@ -1198,6 +1236,7 @@ function AppContent({ currentView: initialView = 'list', isEditing = false, form
             className="btn-release"
             style={{ whiteSpace: 'nowrap' }}
           >
+            <Upload size={18} style={{ marginRight: '8px' }} />
             Release Entries
           </button>
           <button 
@@ -1205,18 +1244,36 @@ function AppContent({ currentView: initialView = 'list', isEditing = false, form
             className="btn-import"
             style={{ whiteSpace: 'nowrap' }}
           >
+            <Download size={18} style={{ marginRight: '8px' }} />
             Scrape Entries
           </button>
           <button onClick={() => setShowChat(true)} className="btn-secondary" style={{ whiteSpace: 'nowrap' }}>
+            <MessageCircle size={18} style={{ marginRight: '8px' }} />
             Ask Villy (RAG)
           </button>
           <button onClick={handleExport} className="btn-secondary" style={{ whiteSpace: 'nowrap' }}>
+            <FileDown size={18} style={{ marginRight: '8px' }} />
             Export Entries
           </button>
-          <button onClick={handleClearAll} className="btn-danger" style={{ whiteSpace: 'nowrap' }}>
-            Clear All Entries
-          </button>
+    <button onClick={handleClearAll} className="btn-danger" style={{ whiteSpace: 'nowrap' }}>
+      <Trash2 size={18} style={{ marginRight: '8px' }} />
+      Clear Entries
+    </button>
         </div>
+        <ProcessStatus 
+          onScrapingClick={(sessionId) => {
+            setShowScrapeModal(true);
+            if (sessionId) {
+              // Store the session ID to show completed session in modal
+              setCurrentScrapeSessionId(sessionId);
+            }
+          }}
+          onEntryGenerationClick={(sessionId) => {
+            // Open entry generation modal for specific session
+            setShowScrapeModal(true);
+            // You might want to set a specific session ID here
+          }}
+        />
       </nav>
       )}
 
@@ -1281,6 +1338,8 @@ function AppContent({ currentView: initialView = 'list', isEditing = false, form
         onClose={handleClearCancel}
         title={clearModalStep === 1 ? "Choose clear option" : 
                clearOption === 'all' ? "You are deleting all law entries IN THE ENTIRE DATABASE." :
+               clearOption === 'unreleased' ? "You are deleting all UNRELEASED entries." :
+               clearOption === 'released' ? "You are deleting all RELEASED entries." :
                "You are deleting all law entries for TODAY."}
         subtitle={clearModalStep === 2 ? "Would you like to continue?" : null}
       >
@@ -1288,9 +1347,15 @@ function AppContent({ currentView: initialView = 'list', isEditing = false, form
           <div className="modal-options">
             <button 
               className="modal-option" 
-              onClick={() => handleClearOptionSelect('today')}
+              onClick={() => handleClearOptionSelect('unreleased')}
             >
-              Today
+              Unreleased
+            </button>
+            <button 
+              className="modal-option" 
+              onClick={() => handleClearOptionSelect('released')}
+            >
+              Released
             </button>
             <button 
               className="modal-option" 
@@ -1487,11 +1552,15 @@ function AppContent({ currentView: initialView = 'list', isEditing = false, form
       {/* Scrape Entries Modal */}
       <ScrapeEntriesModal
         isOpen={showScrapeModal}
-        onClose={() => setShowScrapeModal(false)}
+        onClose={() => {
+          setShowScrapeModal(false);
+          setCurrentScrapeSessionId(null);
+        }}
         onSuccess={() => {
           // Keep modal open after success; store a flag for next time
           try { localStorage.setItem('lastScrapeCompleted', '1'); } catch {}
         }}
+        initialSessionId={currentScrapeSessionId}
       />
 
       {/* Scrape Batches Modal */}
@@ -1517,6 +1586,19 @@ function AppContent({ currentView: initialView = 'list', isEditing = false, form
       {/* Chat Modal (RAG) */}
       <ChatModal isOpen={showChat} onClose={() => setShowChat(false)} />
     </div>
+  );
+}
+
+// Main App component with providers
+function App() {
+  return (
+    <BackgroundProcessProvider>
+      <ToastProvider>
+        <AppContentWrapper />
+        {/* Toast Notifications */}
+        <Toast />
+      </ToastProvider>
+    </BackgroundProcessProvider>
   );
 }
 

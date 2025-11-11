@@ -13,3 +13,6 @@ ALTER TABLE scraping_sessions
 CREATE INDEX IF NOT EXISTS idx_scraping_sessions_saved ON scraping_sessions(is_saved, created_at DESC);
 
 
+
+
+

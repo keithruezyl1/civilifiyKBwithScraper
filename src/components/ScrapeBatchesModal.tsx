@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import Modal from './Modal/Modal';
 import { listScrapeBatches, generateEntriesForBatch, deleteScrapeBatch } from '../services/kbApi';
+import { useBackgroundProcess } from '../contexts/BackgroundProcessContext';
 
 interface Props {
   isOpen: boolean;
@@ -8,10 +9,14 @@ interface Props {
 }
 
 export default function ScrapeBatchesModal({ isOpen, onClose }: Props) {
+  const { addProcess } = useBackgroundProcess();
   const [loading, setLoading] = useState(false);
   const [batches, setBatches] = useState<any[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [confirm, setConfirm] = useState<{ action: 'generate' | 'delete'; id: string; desc?: string } | null>(null);
+  const [showLimitModal, setShowLimitModal] = useState(false);
+  const [limitValue, setLimitValue] = useState<string>('10');
+  const [pendingGenerateId, setPendingGenerateId] = useState<string | null>(null);
 
   const load = async () => {
     setLoading(true);
@@ -30,12 +35,65 @@ export default function ScrapeBatchesModal({ isOpen, onClose }: Props) {
 
   const handleGenerate = async (id: string) => {
     setConfirm(null);
+    
+    // Find the batch to check its category
+    const batch = batches.find(b => b.id === id);
+    const isStatuteBatch = batch?.category === 'acts';
+    
+    if (isStatuteBatch) {
+      // Show limit modal ONLY for statute batches
+      setPendingGenerateId(id);
+      setShowLimitModal(true);
+    } else {
+      // For constitution batches, generate all entries directly
+      try {
+        addProcess({
+          type: 'entry_generation',
+          status: 'running',
+          sessionId: id,
+          title: `Generating entries for batch ${id}`,
+        });
+        
+        await generateEntriesForBatch(id);
+        alert('Generation started/completed for this batch. Check entries.');
+      } catch (e: any) {
+        alert(e?.message || 'Failed to generate entries');
+      }
+    }
+  };
+
+  const handleGenerateWithLimit = async () => {
+    if (!pendingGenerateId) return;
+    
+    const limit = parseInt(limitValue);
+    if (isNaN(limit) || limit <= 0) {
+      alert('Please enter a valid number greater than 0');
+      return;
+    }
+
+    setShowLimitModal(false);
+    const id = pendingGenerateId;
+    setPendingGenerateId(null);
+
     try {
-      await generateEntriesForBatch(id);
-      alert('Generation started/completed for this batch. Check entries.');
+      // Add background process tracking
+      addProcess({
+        type: 'entry_generation',
+        status: 'running',
+        sessionId: id,
+        title: `Generating ${limit} entries for batch ${id}`,
+      });
+      
+      await generateEntriesForBatch(id, limit);
+      alert(`Generation started/completed for ${limit} entries in this batch. Check entries.`);
     } catch (e: any) {
       alert(e?.message || 'Failed to generate entries');
     }
+  };
+
+  const handleCancelLimit = () => {
+    setShowLimitModal(false);
+    setPendingGenerateId(null);
   };
 
   const handleDelete = async (id: string) => {
@@ -105,6 +163,46 @@ export default function ScrapeBatchesModal({ isOpen, onClose }: Props) {
               ) : (
                 <button className="btn btn-danger" onClick={() => handleDelete(confirm.id)}>Confirm</button>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Limit Modal */}
+      {showLimitModal && (
+        <div className="modal-overlay" style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div className="modal-content" style={{ background: '#111827', border: '1px solid #1f2937', color: '#e5e7eb', borderRadius: 12, padding: 20, width: 400 }}>
+            <h3 style={{ marginTop: 0 }}>How many to enrich?</h3>
+            <p style={{ color: '#9ca3af', marginBottom: 16 }}>
+              Enter the number of entries to generate (for testing purposes to save credits):
+            </p>
+            <div style={{ marginBottom: 20 }}>
+              <input
+                type="number"
+                value={limitValue}
+                onChange={(e) => setLimitValue(e.target.value)}
+                placeholder="10"
+                min="1"
+                style={{
+                  width: '100%',
+                  padding: '8px 12px',
+                  background: '#1f2937',
+                  border: '1px solid #374151',
+                  borderRadius: 6,
+                  color: '#e5e7eb',
+                  fontSize: 14
+                }}
+              />
+            </div>
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+              <button className="btn btn-secondary" onClick={handleCancelLimit}>Cancel</button>
+              <button 
+                className="btn btn-success" 
+                style={{ background: '#16a34a', color: '#ffffff', border: 'none' }} 
+                onClick={handleGenerateWithLimit}
+              >
+                Generate {limitValue} Entries
+              </button>
             </div>
           </div>
         </div>

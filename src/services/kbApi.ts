@@ -235,8 +235,13 @@ export async function saveScrapeBatch(sessionId: string, description: string): P
   return json;
 }
 
-export async function generateEntriesForBatch(sessionId: string): Promise<any>{
-  const resp = await fetch(`${SCRAPE_BASE_URL}/batch/${encodeURIComponent(sessionId)}/generate-entries`, { method: 'POST' });
+export async function generateEntriesForBatch(sessionId: string, limit?: number): Promise<any>{
+  const body = limit ? JSON.stringify({ limit }) : undefined;
+  const resp = await fetch(`${SCRAPE_BASE_URL}/batch/${encodeURIComponent(sessionId)}/generate-entries`, { 
+    method: 'POST',
+    headers: body ? { 'Content-Type': 'application/json' } : undefined,
+    body
+  });
   const json = await resp.json().catch(() => ({}));
   if (!resp.ok) throw new Error(json?.error || 'Failed to generate entries');
   return json;

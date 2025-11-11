@@ -1119,7 +1119,7 @@ export const useLocalStorage = () => {
   };
 
   return {
-    entries, loading, error, clearError, addEntry, updateEntry, deleteEntry,
+    entries, setEntries, loading, error, clearError, addEntry, updateEntry, deleteEntry,
     getEntryById, getEntryByEntryId, searchEntries, getEntriesByType,
     getOfflinePackEntries, exportEntries, exportSingleEntry, importEntries, clearAllEntries,
     getStorageStats, getTeamMemberProgress, getAllTeamProgress, resetDailyQuotas,

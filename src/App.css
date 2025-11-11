@@ -498,6 +498,14 @@ body {
   box-sizing: border-box;
 }
 
+/* Ensure icons in nav buttons are white and properly spaced */
+.nav-center button svg {
+  color: white !important;
+  fill: white !important;
+  stroke: white !important;
+  flex-shrink: 0;
+}
+
 .nav-right button:not(.btn-danger):not(.btn-import),
 .nav-right label {
   padding: 0.75rem 1.5rem !important;
@@ -605,6 +613,17 @@ body {
   background: #e55a2b;
   transform: translateY(-1px);
   box-shadow: 0 4px 8px rgba(255, 107, 53, 0.3);
+}
+
+/* Ensure icons are white in all button types */
+.btn-primary svg,
+.btn-secondary svg,
+.btn-import svg,
+.btn-danger svg,
+.btn-release svg {
+  color: white !important;
+  fill: white !important;
+  stroke: white !important;
 }
 
 .btn-primary:disabled {

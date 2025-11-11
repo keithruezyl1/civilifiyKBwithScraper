@@ -1,17 +1,7 @@
 
 # Civilify Law Entry App
 
-<!-- Replace with your project logo -->
-<p align="center">
-  <img src="[Your Project Logo URL Here]" alt="Civilify Law Entry App Logo" width="200"/>
-</p>
-
-[![License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Documentation](https://img.shields.io/badge/Documentation-Comprehensive-brightgreen)](JSON_ENTRY_CREATION_GUIDE.md)
-[![Contribute](https://img.shields.io/badge/Contributions-Welcome-yellow)](CONTRIBUTING.md)
-[![Maintenance](https://img.shields.io/badge/Maintained%3F-yes-green.svg)](https://GitHub.com/Naereen/StrapDown.js/graphs/commit-activity)
-
-Civilify Law Entry App is a tool designed to streamline the creation, import, and management of legal entries in a structured format. It provides comprehensive guides and resources for developers and legal professionals to effectively utilize the application, ensuring accuracy, consistency, and ease of access to legal information.
+Civilify Law Entry App streamlines creating, importing, validating, and managing legal knowledge base entries. It includes a React frontend and a Node/Express backend (with PostgreSQL + pgvector) plus comprehensive authoring guides.
 
 ## Table of Contents
 
@@ -34,91 +24,112 @@ The primary goal of Civilify Law Entry App is to simplify the process of creatin
 
 ### 📖 JSON Entry Creation Guide
 
-*   **File:** `JSON_ENTRY_CREATION_GUIDE.md`
-*   **Purpose:** A detailed guide for creating valid JSON entries for all supported entry types.
-*   **Use Case:** Ideal for programmatic entry creation or when using AI tools.
-*   **Includes:**
-    *   Complete JSON structure for all entry types.
-    *   Validation rules and requirements.
-    *   Detailed examples for each entry type.
-    *   AI generation tips and prompts.
-    *   Troubleshooting guide.
+*   **File:** `docs/JSON_ENTRY_CREATION_GUIDE.md`
+*   **Purpose:** Create valid JSON entries for all supported types.
+*   **Includes:** complete schemas, validation rules, examples, AI prompts, troubleshooting.
 
 ### 📜 Constitution Provision Guide
 
-*   **File:** `CONSTITUTION_PROVISION_GUIDE.md`
-*   **Purpose:** A specialized guide specifically for creating Constitution Provision entries related to the 1987 Philippine Constitution.
-*   **Use Case:** Essential when creating entries for constitutional provisions.
-*   **Includes:**
-    *   Constitution-specific field requirements.
-    *   Examples with real constitutional provisions.
-    *   Guidance on common topics and jurisprudence.
-    *   Writing guidelines for constitutional entries.
-    *   Team assignment information (if applicable).
+*   **File:** `docs/CONSTITUTION_PROVISION_GUIDE.md`
+*   **Purpose:** Specialized guidance for 1987 Philippine Constitution provisions.
 
 ### 🧪 Test Entry File
 
-*   **File:** `test_entry.json`
-*   **Purpose:** Sample JSON file with valid entries for testing the import functionality.
-*   **Use Case:** Use to test the import feature or as a template for creating new entries.
-*   **Includes:**
-    *   Sample entries for `statute_section` and `rights_advisory`.
-    *   All required fields properly formatted.
-    *   Valid JSON structure.
+*   **File:** `docs/test_entry.json`
+*   **Purpose:** Sample entries for validating the import workflow.
 
 ## Supported Entry Types
 
-The application supports the following entry types:
+1.  `constitution_provision` – Constitution articles/sections (PH)
+2.  `statute_section` – Republic Acts and Revised Penal Code sections
+3.  `city_ordinance_section` – Local city ordinances
+4.  `rule_of_court` – Rules of Court provisions
+5.  `agency_circular` – Government agency circulars
+6.  `doj_issuance` – Department of Justice issuances
+7.  `executive_issuance` – Executive orders and presidential issuances
+8.  `pnp_sop` – PNP standard operating procedures
+9.  `incident_checklist` – Incident response checklists
+10. `rights_advisory` – Rights and legal advice
 
-1.  `constitution_provision`: Philippine Constitution articles/sections
-2.  `statute_section`: Republic Acts and Revised Penal Code sections
-3.  `city_ordinance_section`: Local city ordinances
-4.  `rule_of_court`: Rules of Court provisions
-5.  `agency_circular`: Government agency circulars
-6.  `doj_issuance`: Department of Justice issuances
-7.  `executive_issuance`: Executive orders and presidential issuances
-8.  `pnp_sop`: Philippine National Police standard operating procedures
-9.  `incident_checklist`: Incident response checklists
-10. `rights_advisory`: Rights and legal advice
+See `docs/COMPREHENSIVE_SCHEMA_REFERENCE.md` for the full schema.
 
 ## Quick Start
 
-### JSON Entry Creation
+### Prerequisites
 
-1.  Refer to the `JSON_ENTRY_CREATION_GUIDE.md` for detailed instructions.
-2.  Utilize the provided examples as templates.
-3.  Adhere to the validation rules to ensure entry validity.
-4.  Test your entries using the `test_entry.json` file.
+- Node.js 18+
+- Docker (for local PostgreSQL) or a PostgreSQL 14+ instance
 
-### Constitution Provisions
+### 1) Start PostgreSQL (recommended via Docker Compose)
 
-1.  Consult the `CONSTITUTION_PROVISION_GUIDE.md` for specialized guidance.
-2.  Use the constitutional examples as a reference.
-3.  Follow the writing guidelines to maintain consistency.
-4.  Include relevant jurisprudence to enhance the entry's value.
+From the repository root:
 
-### Testing Import
+```bash
+docker-compose up -d
+```
 
-1.  Employ the `test_entry.json` to validate the import functionality.
-2.  Confirm that the import process executes correctly.
-3.  Check for any validation errors that may arise.
-4.  Create your own entries by following the provided guides.
+This starts PostgreSQL with pgvector on port 5432. See the root `README.local.md` for details.
+
+### 2) Start the backend API
+
+```bash
+cd server
+npm install
+```
+
+Create `server/.env`:
+
+```
+DATABASE_URL=postgres://postgres:postgres@localhost:5432/law_entry_db
+PGSSL=false
+CORS_ORIGIN=http://localhost:3000
+# Optional for embedding/re-index features
+# OPENAI_API_KEY=your_key
+```
+
+Then run:
+
+```bash
+npm run start
+```
+
+This initializes the database (runs SQL in `server/sql/`) and serves the API on `http://localhost:4000`.
+
+### 3) Start the frontend
+
+```bash
+cd ..
+npm install
+cd civilifiyKBwithScraper
+npm install
+```
+
+Create `civilifiyKBwithScraper/.env.local`:
+
+```
+REACT_APP_API_BASE=http://localhost:4000
+```
+
+Run the app:
+
+```bash
+npm start
+```
 
 ## Import Process
 
-Here's a visual guide to the import process:
+1. Create a JSON file following `docs/JSON_ENTRY_CREATION_GUIDE.md`.
+2. Open the app and click "Import Entries".
+3. Select your file (use `docs/test_entry.json` to try it out).
+4. Review validation messages and confirm import.
 
-1.  Create your JSON file, ensuring it adheres to the guidelines specified in the `JSON_ENTRY_CREATION_GUIDE.md`.
-2.  Save the file with a `.json` extension (e.g., `my_entries.json`).
-3.  Click the "Import Entries" button within the application.
-4.  Select your JSON file for import.
-5.  Verify the success message to confirm the number of imported entries.
+Scraping automation tools are available via the "Scrape Entries" and "Scrape Batches" modals.
 
 ## AI Generation Tips
 
 When using GPT or other AI tools for entry creation:
 
-1.  **Provide Comprehensive Context:** Always provide the complete `JSON_ENTRY_CREATION_GUIDE.md` as context to the AI.
+1.  **Provide Comprehensive Context:** Include `docs/JSON_ENTRY_CREATION_GUIDE.md`.
 2.  **Specify Entry Type:** Clearly specify the entry type you wish to create (e.g., `statute_section`, `constitution_provision`).
 3.  **Include Legal Text:** Provide the specific legal text that the entry should be based on.
 4.  **Request JSON Validation:** Ask the AI to validate the generated JSON structure to ensure it meets the required format.
@@ -141,14 +152,14 @@ When using GPT or other AI tools for entry creation:
 >
 > Please ensure all required fields are included and the JSON is valid JSON.
 
-> **Important:** Always validate the AI-generated JSON against the `JSON_ENTRY_CREATION_GUIDE.md` to ensure compliance with the required format and validation rules.
+> **Important:** Always validate against `docs/JSON_ENTRY_CREATION_GUIDE.md`.
 
 ## Support
 
-*   **Technical Issues:** Check the browser console for validation errors.
-*   **Content Questions:** Refer to the specific guides for your entry type.
-*   **Import Problems:** Use the test file to verify functionality.
-*   **General Help:** Contact the development team.
+*   **Technical Issues:** Check browser console and server logs.
+*   **Content Questions:** See the guides in `docs/`.
+*   **Import Problems:** Try `docs/test_entry.json` to isolate issues.
+*   **Database Issues:** Confirm PostgreSQL is running and `DATABASE_URL` is correct.
 
 ---
 

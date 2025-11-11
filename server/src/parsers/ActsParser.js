@@ -211,12 +211,11 @@ class ActsParser {
     contentEntries.forEach((entry, index) => {
       console.log(`    📝 ${entry.type.toUpperCase()} ${entry.number}: ${entry.text.substring(0, 50)}...`);
       
-      // Format the extracted text with full context
-      const contextString = entry.contextPath ? `, ${entry.contextPath}` : '';
-      const formattedText = `Act No. ${actMetadata.actNumber}, ${actMetadata.title}${contextString}, ${entry.type.toUpperCase()} ${entry.number}\n${entry.text}`;
+      // Store ONLY the sanitized body text (no title/metadata)
+      const sanitizedText = entry.text.trim();
       
       results.push({
-        extracted_text: formattedText,
+        extracted_text: sanitizedText,
         metadata: {
           ...actMetadata,
           sectionNumber: entry.number,

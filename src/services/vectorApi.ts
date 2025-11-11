@@ -108,10 +108,11 @@ export async function deleteEntryVector(entryId: string): Promise<{ success: boo
   }
 }
 
-export async function clearEntriesVector(dateISO?: string): Promise<{ success: boolean; error?: string }>{
+export async function clearEntriesVector(dateISO?: string, status?: string): Promise<{ success: boolean; error?: string }>{
   try {
     const url = new URL(`${BASE_URL}/entries`);
     if (dateISO) url.searchParams.set('date', dateISO);
+    if (status) url.searchParams.set('status', status);
     const token = localStorage.getItem('auth_token');
     const resp = await fetch(url.toString(), {
       method: 'DELETE',

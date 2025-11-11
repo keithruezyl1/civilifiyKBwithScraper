@@ -6,7 +6,7 @@ const router = Router();
 // Helper: fetch all entries for current user (basic fields)
 async function fetchUserEntries(userId) {
   const res = await query(
-    `select entry_id, title, canonical_citation, legal_bases, related_sections, created_by
+    `select entry_id, title, canonical_citation, related_laws, created_by
        from kb_entries
        where created_by = $1`,
     [userId]
@@ -53,7 +53,7 @@ router.post('/compute', async (req, res) => {
 
     let created = 0;
     for (const e of entries) {
-      const arrays = [Array.isArray(e.legal_bases) ? e.legal_bases : [], Array.isArray(e.related_sections) ? e.related_sections : []];
+      const arrays = [Array.isArray(e.related_laws) ? e.related_laws : []];
       for (const arr of arrays) {
         for (const item of arr) {
           if (!item || item.type !== 'external') continue;
@@ -165,12 +165,11 @@ router.post('/:id/resolve', async (req, res) => {
     };
 
     const updated = { ...entry };
-    updated.legal_bases = convertInArray(entry.legal_bases || []);
-    updated.related_sections = convertInArray(entry.related_sections || []);
+    updated.related_laws = convertInArray(entry.related_laws || []);
 
     await query(
-      `update kb_entries set legal_bases=$2, related_sections=$3, updated_at=now() where entry_id=$1`,
-      [entry.entry_id, JSON.stringify(updated.legal_bases), JSON.stringify(updated.related_sections)]
+      `update kb_entries set related_laws=$2, updated_at=now() where entry_id=$1`,
+      [entry.entry_id, JSON.stringify(updated.related_laws)]
     );
 
     await query(`update kb_notifications set status='resolved', resolved_at=now() where id=$1`, [id]);

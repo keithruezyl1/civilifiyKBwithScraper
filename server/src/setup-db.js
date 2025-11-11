@@ -27,23 +27,41 @@ async function setupDatabase() {
     const sqlFiles = [
       join(__dirname, '../sql/000_base_schema.sql'),
       join(__dirname, '../sql/001_init.sql'),
+      // Ensure pgvector extension, embedding column and index are present
+      join(__dirname, '../sql/028_enable_pgvector.sql'),
+      // Normalize types if coming from older schema
+      join(__dirname, '../sql/029_convert_tags_textarray.sql'),
       join(__dirname, '../sql/002_match_fn.sql'),
-      join(__dirname, '../sql/003_migrate_add_created_by.sql'),
-      join(__dirname, '../sql/004_shared_plans.sql'),
-      join(__dirname, '../sql/005_simple_passwords.sql'),
-      join(__dirname, '../sql/006_kb_entries_extend.sql'),
+      // Archived: 003, 004, 005 (no longer needed for baseline setup)
+      // IMPORTANT: Skip legacy 006 extension (causes excessive columns). Newer migrations add only required fields.
       join(__dirname, '../sql/012_trgm_lexical.sql'),
-      join(__dirname, '../sql/013_fulltext.sql'),
-      // Scraping automation tables and supportive data
+    ];
+
+    // By default, DO NOT run rebuild migration (protects existing data).
+    // To allow a controlled rebuild, set ALLOW_REBUILD=true in environment.
+    if (process.env.ALLOW_REBUILD === 'true') {
+      console.log('ALLOW_REBUILD=true detected: including 025_rebuild_kb_entries.sql (may drop and recreate kb_entries)');
+      sqlFiles.push(join(__dirname, '../sql/025_rebuild_kb_entries.sql'));
+    } else {
+      console.log('Skipping 025_rebuild_kb_entries.sql to protect existing data. Set ALLOW_REBUILD=true to enable.');
+    }
+
+    // Continue with idempotent, non-destructive migrations
+    sqlFiles.push(
+      join(__dirname, '../sql/026_ensure_enrichment_columns.sql'),
+      // Scraping automation tables and supportive data (runs AFTER rebuild)
       join(__dirname, '../sql/017_scraping_automation.sql'),
       join(__dirname, '../sql/018_populate_subtypes.sql'),
-      join(__dirname, '../sql/019_slim_kb_entries.sql'),
+      // IMPORTANT: Skip 019_slim_kb_entries to avoid dropping enrichment columns after rebuild
       join(__dirname, '../sql/020_comprehensive_enrichment.sql'),
-      // Idempotent post-initial migrations
-      join(__dirname, '../sql/007_add_created_by_name.sql'),
-      join(__dirname, '../sql/008_add_verified.sql'),
+      join(__dirname, '../sql/021_scrape_batches.sql'),
+      join(__dirname, '../sql/022_add_dates.sql'),
+      join(__dirname, '../sql/023_restore_subtype_fields.sql'),
+      join(__dirname, '../sql/027_related_laws.sql'),
+      // Skip 024_fix_array_fields: array types are created correctly by 025 rebuild
+      // Idempotent post-initial migrations (archived 007/008)
       join(__dirname, '../sql/011_notifications.sql'),
-    ];
+    );
 
     console.log('SQL files to execute (in order):');
     sqlFiles.forEach(f => console.log(' -', f));

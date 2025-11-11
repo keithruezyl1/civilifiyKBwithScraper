@@ -473,6 +473,48 @@ const EntryView = ({ entry, onEdit, onDelete, onExport, teamMemberNames = {} }) 
       return String(v);
     })();
 
+    // Function to render subtype-specific fields
+    const renderSubtypeFields = (subtypeFields, entrySubtype) => {
+      if (!subtypeFields || typeof subtypeFields !== 'object') return null;
+      
+      const fields = [];
+      
+      // Handle different statute subtypes
+      if (entrySubtype === 'republic_act' && subtypeFields.ra_number) {
+        fields.push({ label: 'Republic Act Number', value: `RA ${subtypeFields.ra_number}` });
+      }
+      if (entrySubtype === 'commonwealth_act' && subtypeFields.commonwealth_act_number) {
+        fields.push({ label: 'Commonwealth Act Number', value: `CA ${subtypeFields.commonwealth_act_number}` });
+      }
+      if (entrySubtype === 'mga_batas_pambansa' && subtypeFields.mbp_number) {
+        fields.push({ label: 'Batas Pambansa Number', value: `BP ${subtypeFields.mbp_number}` });
+      }
+      if (entrySubtype === 'act' && subtypeFields.act_number) {
+        fields.push({ label: 'Act Number', value: `Act ${subtypeFields.act_number}` });
+      }
+      if (subtypeFields.section_number) {
+        fields.push({ label: 'Section Number', value: subtypeFields.section_number });
+      }
+      
+      if (fields.length === 0) return null;
+      
+      return (
+        <div className="field-group">
+          <h4 className="field-group-title">Statute Details</h4>
+          <div className="field-group-content">
+            <div className="info-grid">
+              {fields.map((field, index) => (
+                <div key={index} className="info-item">
+                  <span className="label">{field.label}:</span>
+                  <span className="value">{field.value}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      );
+    };
+
     switch (currentEntry.type) {
       case 'statute_section':
         return (
@@ -484,17 +526,27 @@ const EntryView = ({ entry, onEdit, onDelete, onExport, teamMemberNames = {} }) 
             {renderArrayFieldStructured('elements', currentEntry.elements, 'Elements')}
             {renderArrayFieldStructured('penalties', currentEntry.penalties, 'Penalties')}
             {renderArrayFieldStructured('defenses', currentEntry.defenses, 'Defenses')}
+            {renderSubtypeFields(currentEntry.subtype_fields, currentEntry.entry_subtype)}
+          </div>
+        );
+
+      case 'constitution_provision':
+        return (
+          <div className="type-specific-fields">
+            {/* Constitution-specific: hide statute/process grids; show context fields */}
+            {renderArrayFieldStructured('rights_callouts', currentEntry.rights_callouts, 'Rights Callouts')}
+            {renderArrayFieldStructured('advice_points', currentEntry.advice_points, 'Advice Points')}
+            {renderArrayFieldStructured('jurisprudence', currentEntry.jurisprudence, 'Jurisprudence')}
+            {/* Remove Legal Bases outside of Relations; shown below in Relations */}
           </div>
         );
 
       case 'city_ordinance_section':
         return (
           <div className="type-specific-fields">
-            <div className="info-grid">
-              {renderField('Elements', currentEntry.elements, 'array')}
-              {renderField('Penalties', currentEntry.penalties, 'array')}
-              {renderField('Defenses', currentEntry.defenses, 'array')}
-            </div>
+            {renderArrayFieldStructured('elements', currentEntry.elements, 'Elements')}
+            {renderArrayFieldStructured('penalties', currentEntry.penalties, 'Penalties')}
+            {renderArrayFieldStructured('defenses', currentEntry.defenses, 'Defenses')}
           </div>
         );
 
@@ -767,42 +819,6 @@ const EntryView = ({ entry, onEdit, onDelete, onExport, teamMemberNames = {} }) 
             </div>
           )}
 
-          {/* Legal Analysis */}
-          <div className="entry-section">
-            <h3>Legal Analysis</h3>
-            <div className="info-grid">
-              {currentEntry.applicability && (
-                <div className="info-item">
-                  <span className="label">Applicability:</span>
-                  <span className="value">{currentEntry.applicability}</span>
-                </div>
-              )}
-              {currentEntry.penalties && (
-                <div className="info-item">
-                  <span className="label">Penalties:</span>
-                  <span className="value">{currentEntry.penalties}</span>
-                </div>
-              )}
-              {currentEntry.defenses && (
-                <div className="info-item">
-                  <span className="label">Defenses:</span>
-                  <span className="value">{currentEntry.defenses}</span>
-                </div>
-              )}
-              {currentEntry.time_limits && (
-                <div className="info-item">
-                  <span className="label">Time Limits:</span>
-                  <span className="value">{currentEntry.time_limits}</span>
-                </div>
-              )}
-              {currentEntry.required_forms && (
-                <div className="info-item">
-                  <span className="label">Required Forms:</span>
-                  <span className="value">{currentEntry.required_forms}</span>
-                </div>
-              )}
-            </div>
-          </div>
 
           {/* Legal Elements */}
           {currentEntry.elements && (
@@ -934,53 +950,9 @@ const EntryView = ({ entry, onEdit, onDelete, onExport, teamMemberNames = {} }) 
             </div>
           )}
 
-          {/* Rights and Protections */}
-          {(currentEntry.rights_callouts || currentEntry.rights_scope || currentEntry.advice_points) && (
-            <div className="entry-section">
-              <h3>Rights and Protections</h3>
-              <div className="info-grid">
-                {currentEntry.rights_callouts && (
-                  <div className="info-item">
-                    <span className="label">Rights Callouts:</span>
-                    <span className="value">{currentEntry.rights_callouts}</span>
-                  </div>
-                )}
-                {currentEntry.rights_scope && (
-                  <div className="info-item">
-                    <span className="label">Rights Scope:</span>
-                    <span className="value">{currentEntry.rights_scope}</span>
-                  </div>
-                )}
-                {currentEntry.advice_points && (
-                  <div className="info-item">
-                    <span className="label">Advice Points:</span>
-                    <span className="value">{currentEntry.advice_points}</span>
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
+          {/* Rights and Protections section removed; content shown within Constitution Provision Details */}
 
-          {/* Legal Context */}
-          {(currentEntry.jurisprudence || currentEntry.legal_bases) && (
-            <div className="entry-section">
-              <h3>Legal Context</h3>
-              <div className="info-grid">
-                {currentEntry.jurisprudence && (
-                  <div className="info-item">
-                    <span className="label">Jurisprudence:</span>
-                    <span className="value">{currentEntry.jurisprudence}</span>
-                  </div>
-                )}
-                {currentEntry.legal_bases && (
-                  <div className="info-item">
-                    <span className="label">Legal Bases:</span>
-                    <span className="value">{currentEntry.legal_bases}</span>
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
+          {/* Legal Context removed for constitution entries - shown in Relations and Constitution Provision Details */}
 
           {/* Full Text Content */}
           {currentEntry.text && (
@@ -998,83 +970,85 @@ const EntryView = ({ entry, onEdit, onDelete, onExport, teamMemberNames = {} }) 
           </div>
           )}
 
-          {/* Relations - neutral labels, clickable if resolvable, otherwise toast */}
-          {(renderLegalBases(currentEntry.legal_bases) || (currentEntry.related_sections && Array.isArray(currentEntry.related_sections) && currentEntry.related_sections.length > 0)) && (
-          <div className="entry-section">
-            <h3>Relations</h3>
-              {renderLegalBases(currentEntry.legal_bases)}
-              {currentEntry.related_sections && Array.isArray(currentEntry.related_sections) && currentEntry.related_sections.length > 0 && (
-                          <div className="field-group">
-                <h4>Related Sections</h4>
+          {/* Related Laws - show 1–3 items; format: Citation, URL */}
+          {(Array.isArray(currentEntry.related_laws) && currentEntry.related_laws.length > 0) ? (
+            <div className="entry-section">
+              <h3>Related Laws</h3>
+              {Array.isArray(currentEntry.related_laws) && currentEntry.related_laws.length > 0 && (
+                <div className="field-group">
                   <div className="related-sections-grid">
-                    {currentEntry.related_sections.map((rel, idx) => (
-                      <div
-                        key={idx}
-                        className={`legal-basis-card clickable`}
-                        onClick={async () => {
-                          const entryId = rel?.entry_id;
-                              try {
-                            if (entryId) {
-                                const target = await fetchEntryById(entryId);
-                                if (target) {
-                                  window.dispatchEvent(new CustomEvent('open-entry-detail', { detail: { entry: { ...target, id: target.entry_id }, entryId } }));
-                                return;
-                              }
-                            }
-                          } catch {}
-                          // Fallback toast if not resolvable
-                          try {
-                            const evt = new CustomEvent('toast', { detail: { type: 'info', message: 'This entry is not in the KB yet', duration: 2000 } });
-                            window.dispatchEvent(evt);
-                          } catch {}
-                        }}
-                      >
-                        <div className="basis-header">
-                          {/* Neutral type: no internal/external badge */}
-                        </div>
-                        {/* Title - consistent for both types */}
-                        <div className="basis-title">
-                            <span className="basis-title-text">{rel?.title || rel?.citation || String(rel)}</span>
-                        </div>
-                        
-                        {/* Citation - smaller grey text below title */}
-                        <div className="basis-citation">
-                          {rel?.type === 'internal' ? (
-                            <span className="citation-text">{rel?.canonical_citation || rel?.entry_id}</span>
-                          ) : (
-                            <span className="citation-text">{rel?.citation || String(rel)}</span>
+                    {currentEntry.related_laws.map((rel, idx) => {
+                      const asObj = typeof rel === 'object' && rel !== null ? rel : null;
+                      const asStr = typeof rel === 'string' ? rel : null;
+                      let citation = '', url = '';
+                      if (asObj) {
+                        citation = asObj.citation || asObj.canonical_citation || '';
+                        url = asObj.url || '';
+                      } else if (asStr) {
+                        // Parse "Citation\nURL" format (citation on first line, URL on second)
+                        const lines = asStr.split('\n').map(s => s.trim()).filter(Boolean);
+                        citation = lines[0] || '';
+                        url = lines[1] || lines[2] || ''; // Allow URL on second or third line
+                      }
+                      
+                      // Validate and sanitize URL - must be a valid, working URL
+                      const isValidUrl = (urlStr) => {
+                        if (!urlStr || typeof urlStr !== 'string') return false;
+                        // Reject localhost, placeholder URLs, or non-URL text
+                        if (urlStr.includes('localhost') || urlStr.includes('LawPhil URL') || urlStr.includes('LawPhil%20URL')) return false;
+                        // Must start with http:// or https://
+                        if (!urlStr.startsWith('http://') && !urlStr.startsWith('https://')) return false;
+                        try {
+                          new URL(urlStr); // Validate URL format
+                          return true;
+                        } catch {
+                          return false;
+                        }
+                      };
+                      
+                      // If URL is invalid, try to generate a valid LawPhil URL from citation
+                      if (!isValidUrl(url) && citation) {
+                        // Generate LawPhil URL based on citation pattern
+                        if (citation.includes('1987 Constitution') || citation.includes('Constitution')) {
+                          url = 'https://lawphil.net/consti/cons1987.html';
+                        } else if (citation.includes('Republic Act') || citation.includes('RA ')) {
+                          const raMatch = citation.match(/RA\s*(\d+)/i) || citation.match(/Republic\s+Act\s+(\d+)/i);
+                          if (raMatch) {
+                            url = `https://lawphil.net/statutes/repacts/ra${raMatch[1]}/ra${raMatch[1]}.html`;
+                          } else {
+                            url = 'https://lawphil.net/statutes/statutes.html';
+                          }
+                        } else if (citation.includes('Commonwealth Act') || citation.includes('CA ')) {
+                          const caMatch = citation.match(/CA\s*(\d+)/i) || citation.match(/Commonwealth\s+Act\s+(\d+)/i);
+                          if (caMatch) {
+                            url = `https://lawphil.net/statutes/comacts/ca${caMatch[1]}/ca${caMatch[1]}.html`;
+                          } else {
+                            url = 'https://lawphil.net/statutes/statutes.html';
+                          }
+                        } else {
+                          // Default to LawPhil main page if we can't determine
+                          url = 'https://lawphil.net';
+                        }
+                      } else if (!isValidUrl(url)) {
+                        url = ''; // Remove invalid URL
+                      }
+                      
+                      return (
+                        <div key={idx} className="legal-basis-card">
+                          {citation && <div className="basis-citation"><span className="citation-text text-white">{citation}</span></div>}
+                          {url && isValidUrl(url) && (
+                            <div className="basis-url">
+                              <a href={url} target="_blank" rel="noopener noreferrer" className="url-link text-white">{url}</a>
+                            </div>
                           )}
                         </div>
-                        
-                        {/* Topic/Summary - descriptive text */}
-                        {(rel?.topic || rel?.summary) && (
-                          <div className="basis-description">
-                            {rel?.type === 'internal' ? (
-                              <span className="description-text">{rel?.summary || rel?.topic}</span>
-                            ) : (
-                              <span className="description-text">{rel?.topic}</span>
-                            )}
-                          </div>
-                        )}
-                        
-                        {/* Note - if provided */}
-                        {rel?.note && <div className="basis-note">{rel.note}</div>}
-                        
-                        {/* URL - at the bottom */}
-                        {rel?.url && (
-                          <div className="basis-url">
-                            <a href={rel.url} target="_blank" rel="noopener noreferrer" className="url-link">
-                              {rel.url}
-                            </a>
-                          </div>
-                        )}
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 </div>
               )}
             </div>
-          )}
+          ) : null}
 
         </div>
       </div>

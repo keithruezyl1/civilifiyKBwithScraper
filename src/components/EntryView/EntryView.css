@@ -485,6 +485,12 @@
   font-weight: 600;
 }
 
+/* Override for Relations section headers - must be white in dark mode */
+.dark-mode .field-group h4.text-white,
+.dark-mode .field-group h4 {
+  color: #ffffff !important;
+}
+
 .array-list {
   list-style: none;
   padding: 0;

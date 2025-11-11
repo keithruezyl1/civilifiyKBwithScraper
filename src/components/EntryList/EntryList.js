@@ -119,7 +119,7 @@ const EntryList = ({ entries, onViewEntry, onEditEntry, onDeleteEntry, onExportE
   const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
   const [isSearching, setIsSearching] = useState(false);
   // Feature flag for server lexical search
-  const useServerSearch = String(process.env.REACT_APP_USE_SERVER_SEARCH || '').toLowerCase() === 'true';
+  const useServerSearch = String(process.env.REACT_APP_USE_SERVER_SEARCH || 'true').toLowerCase() === 'true';
   const [remoteResults, setRemoteResults] = useState([]);
   const [didYouMean, setDidYouMean] = useState(null);
 

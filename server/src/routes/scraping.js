@@ -9,7 +9,22 @@ import { enrichEntryWithGPT, isGPTAvailable } from '../gpt-service.js';
 dotenv.config();
 
 const router = express.Router();
+/**
+ * Lightweight GPT availability status
+ */
+router.get('/gpt-status', (_req, res) => {
+  try {
+    const available = isGPTAvailable();
+    res.json({ success: true, available, model: process.env.OPENAI_CHAT_MODEL || 'gpt-3.5-turbo' });
+  } catch (e) {
+    res.status(200).json({ success: true, available: false, model: process.env.OPENAI_CHAT_MODEL || 'gpt-3.5-turbo' });
+  }
+});
+
 const db = new Pool({ connectionString: process.env.DATABASE_URL });
+
+// In-memory cancel flags for entry generation per session
+const cancelGenerationBySession = new Map();
 
 /**
  * Generate stable entry ID from metadata
@@ -488,6 +503,19 @@ router.get('/session/:sessionId/status', async (req, res) => {
 });
 
 /**
+ * Request cancel of entry generation for a session (best-effort, non-destructive)
+ */
+router.post('/session/:sessionId/cancel-generation', async (req, res) => {
+  try {
+    const { sessionId } = req.params;
+    cancelGenerationBySession.set(sessionId, true);
+    res.json({ success: true, message: 'Cancel requested. Current item will finish and then stop.' });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
  * Get session documents
  */
 router.get('/session/:sessionId/documents', async (req, res) => {
@@ -707,8 +735,9 @@ router.get('/sessions', async (req, res) => {
 router.post('/session/:sessionId/generate-entries', async (req, res) => {
   try {
     const { sessionId } = req.params;
+    const { limit } = req.body || {};
     
-    console.log(`🔄 Generating KB entries for session: ${sessionId}`);
+    console.log(`🔄 Generating KB entries for session: ${sessionId}${limit ? ` (limit: ${limit})` : ''}`);
     
     // Get session info to determine entry type/subtype
     const sessionResult = await db.query(`
@@ -735,8 +764,15 @@ router.post('/session/:sessionId/generate-entries', async (req, res) => {
       return res.status(400).json({ error: 'No parsed documents found in session' });
     }
     
-    const documents = documentsResult.rows;
-    console.log(`📄 Found ${documents.length} parsed documents to process`);
+    let documents = documentsResult.rows;
+    
+    // Apply limit if specified
+    if (limit && limit > 0) {
+      documents = documents.slice(0, parseInt(limit));
+      console.log(`📄 Found ${documentsResult.rows.length} parsed documents, processing first ${documents.length} (limit: ${limit})`);
+    } else {
+      console.log(`📄 Found ${documents.length} parsed documents to process`);
+    }
     
     // Determine entry type and subtype based on session category
     let entryType, entrySubtype;
@@ -747,7 +783,7 @@ router.post('/session/:sessionId/generate-entries', async (req, res) => {
         break;
       case 'acts':
         entryType = 'statute_section';
-        entrySubtype = 'act';
+        entrySubtype = 'act'; // Will be refined per document
         break;
       default:
         entryType = 'constitution_provision';
@@ -758,30 +794,274 @@ router.post('/session/:sessionId/generate-entries', async (req, res) => {
     let skippedCount = 0;
     const errors = [];
     
+    // Function to detect statute subtype and extract subtype-specific data
+    function detectStatuteSubtypeAndData(doc) {
+      const url = doc.canonical_url || '';
+      const text = doc.extracted_text || '';
+      const title = doc.metadata?.title || '';
+      
+      // Check for ACT-XXXX-SECY pattern in URL
+      const actMatch = url.match(/ACT-(\d+)-SEC(\d+)/i);
+      if (actMatch) {
+        return {
+          subtype: 'act',
+          subtypeData: {
+            act_number: parseInt(actMatch[1]),
+            section_number: actMatch[2]
+          }
+        };
+      }
+      
+      // Check metadata for act number and section number
+      const metadata = doc.metadata || {};
+      if (metadata.actNumber && metadata.sectionNumber) {
+        return {
+          subtype: 'act',
+          subtypeData: {
+            act_number: parseInt(metadata.actNumber),
+            section_number: metadata.sectionNumber
+          }
+        };
+      }
+      
+      // Check URL patterns first
+      if (url.includes('/acts/ra')) {
+        const raMatch = url.match(/\/acts\/ra(\d+)/i);
+        if (raMatch) {
+          return {
+            subtype: 'republic_act',
+            subtypeData: {
+              ra_number: parseInt(raMatch[1]),
+              section_number: extractSectionNumber(text, title)
+            }
+          };
+        }
+      }
+      
+      if (url.includes('/acts/ca')) {
+        const caMatch = url.match(/\/acts\/ca(\d+)/i);
+        if (caMatch) {
+          return {
+            subtype: 'commonwealth_act',
+            subtypeData: {
+              commonwealth_act_number: parseInt(caMatch[1]),
+              section_number: extractSectionNumber(text, title)
+            }
+          };
+        }
+      }
+      
+      if (url.includes('/acts/mbp')) {
+        const mbpMatch = url.match(/\/acts\/mbp(\d+)/i);
+        if (mbpMatch) {
+          return {
+            subtype: 'mga_batas_pambansa',
+            subtypeData: {
+              mbp_number: parseInt(mbpMatch[1]),
+              section_number: extractSectionNumber(text, title)
+            }
+          };
+        }
+      }
+      
+      // Check text content for patterns
+      const raMatch = text.match(/(?:Republic Act|RA)\s*No\.?\s*(\d+)/i);
+      if (raMatch) {
+        return {
+          subtype: 'republic_act',
+          subtypeData: {
+            ra_number: parseInt(raMatch[1]),
+            section_number: extractSectionNumber(text, title)
+          }
+        };
+      }
+      
+      const caMatch = text.match(/(?:Commonwealth Act|CA)\s*No\.?\s*(\d+)/i);
+      if (caMatch) {
+        return {
+          subtype: 'commonwealth_act',
+          subtypeData: {
+            commonwealth_act_number: parseInt(caMatch[1]),
+            section_number: extractSectionNumber(text, title)
+          }
+        };
+      }
+      
+      const mbpMatch = text.match(/(?:Mga Batas Pambansa|MBP)\s*No\.?\s*(\d+)/i);
+      if (mbpMatch) {
+        return {
+          subtype: 'mga_batas_pambansa',
+          subtypeData: {
+            mbp_number: parseInt(mbpMatch[1]),
+            section_number: extractSectionNumber(text, title)
+          }
+        };
+      }
+      
+      const textActMatch = text.match(/(?:Act)\s*No\.?\s*(\d+)/i);
+      if (textActMatch) {
+        return {
+          subtype: 'act',
+          subtypeData: {
+            act_number: parseInt(textActMatch[1]),
+            section_number: extractSectionNumber(text, title)
+          }
+        };
+      }
+      
+      // Default fallback
+      return {
+        subtype: 'act',
+        subtypeData: {
+          act_number: null,
+          section_number: extractSectionNumber(text, title)
+        }
+      };
+    }
+    
+    // Function to extract section number from text
+    function extractSectionNumber(text, title) {
+      // Look for "Section X" or "Sec. X" patterns
+      const sectionMatch = text.match(/(?:Section|Sec\.?)\s*(\d+[a-z]?)/i);
+      if (sectionMatch) {
+        return sectionMatch[1];
+      }
+      
+      // Look in title
+      const titleSectionMatch = title.match(/(?:Section|Sec\.?)\s*(\d+[a-z]?)/i);
+      if (titleSectionMatch) {
+        return titleSectionMatch[1];
+      }
+      
+      return null;
+    }
+    
     // Process each document and create KB entry
-    for (const doc of documents) {
+    for (let docIndex = 0; docIndex < documents.length; docIndex++) {
+      const doc = documents[docIndex];
+      
+      // Cooperative cancel: stop after finishing current doc
+      if (cancelGenerationBySession.get(sessionId)) {
+        console.log(`⏹️  Cancel requested for session ${sessionId}. Stopping generation.`);
+        break;
+      }
+      
+      // Pause every 20 entries to remind about enrichment guidelines
+      if (docIndex > 0 && docIndex % 20 === 0 && createdCount > 0) {
+        console.log('\n' + '═'.repeat(80));
+        console.log('⚠️  PAUSE: Every 20 entries generated - Please review enrichment guidelines');
+        console.log('═'.repeat(80));
+        console.log('📋 WHAT TO FOLLOW WHEN ENRICHING:');
+        console.log('   1. TITLE FORMAT:');
+        console.log('      - Constitution: Article ROMAN (I, II, III), Section Arabic (1, 2, 3)');
+        console.log('      - Statutes: "[Act Type] [Number], Section [Y] - [Description]"');
+        console.log('      - Ordinances: "Ordinance [Number], Section [Y] - [Description]"');
+        console.log('      - Rules of Court: "Rule [X], Section [Y] - [Description]"');
+        console.log('   2. NO DUPLICATES in multi-item fields (tags, jurisprudence, related_laws, etc.)');
+        console.log('   3. ALL FIELDS MUST HAVE AT LEAST ONE ITEM (minimum):');
+        console.log('      - ALL arrays: tags, rights_callouts, advice_points, jurisprudence, related_laws');
+        console.log('      - If applicable: Provide 1–3 for related_laws (non-self)');
+        console.log('      - NO maximum limit - provide ALL applicable items (can go beyond 3)');
+        console.log('      - If not applicable: Provide 1 general/connected item (never return empty [])');
+        console.log('      - Statutes: elements, penalties, defenses MUST have at least one, provide as many as applicable');
+        console.log('   4. ENTRY TYPE-SPECIFIC:');
+        console.log('      - Statutes: ALWAYS provide elements, penalties, defenses (at least one each)');
+        console.log('      - Constitution: Provide rights_callouts, advice_points, jurisprudence (at least one each)');
+        console.log('      - Rules of Court: Provide triggers, time_limits, required_forms');
+        console.log('   5. Jurisprudence: Must have at least one citation (citations only, no URLs)');
+        console.log('   6. Relations: Must have at least one item, format: "Citation\\nURL"');
+        console.log('   7. Tags: Must have at least one tag (no maximum)');
+        console.log('   8. Use null (not "NA") for non-applicable string fields');
+        console.log('═'.repeat(80));
+        console.log(`✅ Continuing generation... (${createdCount} entries created so far, ${docIndex + 1}/${documents.length} documents processed)\n`);
+        // Small delay to allow reading the reminder
+        await new Promise(resolve => setTimeout(resolve, 1000));
+      }
+      
       try {
         const metadata = doc.metadata || {};
-        const text = doc.extracted_text || '';
+        let rawText = doc.extracted_text || '';
+        
+        // Sanitize the scraped text before using it
+        const sanitizeFullText = (text) => {
+          if (!text || typeof text !== 'string') return '';
+          
+          let sanitized = text;
+          
+          // Remove HTML tags if any (in case HTML wasn't fully stripped)
+          sanitized = sanitized.replace(/<[^>]+>/g, '');
+          
+          // Remove common scraping artifacts and navigation elements
+          sanitized = sanitized.replace(/(?:back to top|return to top|^top$)/gi, '');
+          sanitized = sanitized.replace(/\[back to top\]/gi, '');
+          sanitized = sanitized.replace(/^\s*[↑▲]\s*/gm, ''); // Remove arrow indicators
+          
+          // Remove excessive whitespace but preserve paragraph structure
+          sanitized = sanitized.replace(/[ \t]+/g, ' '); // Multiple spaces/tabs to single space
+          sanitized = sanitized.replace(/\n{4,}/g, '\n\n\n'); // More than 3 consecutive newlines to 3
+          
+          // Remove leading/trailing whitespace from each line
+          sanitized = sanitized.split('\n').map(line => line.trim()).join('\n');
+          
+          // Remove lines that are just punctuation, numbers, or very short non-meaningful text
+          sanitized = sanitized.split('\n').filter(line => {
+            const trimmed = line.trim();
+            // Keep lines that are:
+            // - Not just numbers (like "1" or "2.")
+            // - Not just punctuation or symbols
+            // - Longer than 2 characters (unless it's meaningful like "A.", "B.", etc.)
+            if (trimmed.length === 0) return true; // Keep blank lines for paragraph spacing
+            if (/^[\d\.\s\-]+$/.test(trimmed) && trimmed.length <= 5) return false; // Remove standalone numbers like "1.", "2)", etc.
+            if (/^[^\w\s]+$/.test(trimmed)) return false; // Remove lines that are only symbols/punctuation
+            if (trimmed.length < 3 && !/^[A-Z]\.$/.test(trimmed)) return false; // Remove very short lines unless it's like "A."
+            return true;
+          }).join('\n');
+          
+          // Clean up excessive blank lines again after filtering
+          sanitized = sanitized.replace(/\n{3,}/g, '\n\n');
+          
+          // Remove common LawPhil footer/header patterns if present
+          sanitized = sanitized.replace(/^The Lawphil Project.*$/gmi, '');
+          sanitized = sanitized.replace(/^Chan Robles.*$/gmi, '');
+          sanitized = sanitized.replace(/©.*?\d{4}.*?Lawphil.*$/gmi, '');
+          
+          // Final trim
+          sanitized = sanitized.trim();
+          
+          return sanitized;
+        };
+        
+        const text = sanitizeFullText(rawText);
         
         if (!text || text.length < 10) {
-          console.log(`⏭️ Skipping document ${doc.id}: insufficient content`);
+          console.log(`⏭️ Skipping document ${doc.id}: insufficient content after sanitization`);
           skippedCount++;
           continue;
         }
         
+        // Detect statute subtype and extract subtype-specific data
+        let finalEntrySubtype = entrySubtype;
+        let subtypeFields = {};
+        
+        if (entryType === 'statute_section') {
+          const subtypeDetection = detectStatuteSubtypeAndData(doc);
+          finalEntrySubtype = subtypeDetection.subtype;
+          subtypeFields = subtypeDetection.subtypeData;
+          console.log(`📋 Detected statute subtype: ${finalEntrySubtype}`, subtypeFields);
+        }
+        
         // Generate stable entry ID
         const entryId = generateEntryId(metadata, session.category);
+        // Determine GPT availability early (used for duplicate handling and full enrichment)
+        const gptAvailable = isGPTAvailable();
         
-        // Check if entry already exists
-        const existingResult = await db.query(`
-          SELECT 1 FROM kb_entries WHERE entry_id = $1
-        `, [entryId]);
+        // Check if entry already exists BEFORE enrichment to save credits
+        const existingCheck = await db.query('SELECT entry_id FROM kb_entries WHERE entry_id = $1', [entryId]);
         
-        if (existingResult.rows.length > 0) {
-          console.log(`↷ Skipping duplicate entry: ${entryId}`);
+        if (existingCheck.rows.length > 0) {
+          console.log(`⏭️  Skipping duplicate entry: ${entryId} (already exists)`);
           skippedCount++;
-          continue;
+          continue; // Move to next document
         }
         
         // Create canonical citation
@@ -794,13 +1074,25 @@ router.post('/session/:sessionId/generate-entries', async (req, res) => {
           title: metadata.title || canonicalCitation,
           canonical_citation: canonicalCitation,
           text: text,
-          entry_subtype: entrySubtype
+          entry_subtype: finalEntrySubtype
         };
         
-        // Check if GPT is available
-        const gptAvailable = isGPTAvailable();
-        if (!gptAvailable) {
-          console.log('⚠️ GPT service not available - entries will be created without enrichment');
+        // gptAvailable already determined earlier
+
+        // Determine law_family based on URL pattern for constitution entries
+        let lawFamily = 'constitution';
+        if (session.category === 'constitution_1987') {
+          if (doc.canonical_url.includes('/cons1987.html')) {
+            lawFamily = '1987 Constitution';
+          } else if (doc.canonical_url.includes('/cons1935.html')) {
+            lawFamily = '1935 Constitution';
+          } else if (doc.canonical_url.includes('/consmalo.html')) {
+            lawFamily = 'Malolos Constitution';
+          } else if (doc.canonical_url.includes('/cons1973.html')) {
+            lawFamily = '1973 Constitution';
+          } else if (doc.canonical_url.includes('/cons1986.html')) {
+            lawFamily = '1986 Constitution';
+          }
         }
 
         // Enrich with GPT if available
@@ -809,6 +1101,14 @@ router.post('/session/:sessionId/generate-entries', async (req, res) => {
           try {
             console.log(`🤖 Enriching entry with GPT: ${entryId}`);
             enrichedData = await enrichEntryWithGPT(entryData);
+            // Override law_family with URL-based determination
+          enrichedData.law_family = lawFamily;
+            
+            // Ensure required fields are set for constitution entries
+            if (session.category === 'constitution_1987') {
+              enrichedData.jurisdiction = enrichedData.jurisdiction || 'Philippines';
+              enrichedData.effective_date = enrichedData.effective_date || '1987-02-02';
+            }
             console.log(`✅ GPT enrichment successful for: ${entryId}`);
           } catch (gptError) {
             console.error(`❌ GPT enrichment failed for ${entryId}:`, gptError.message);
@@ -816,32 +1116,120 @@ router.post('/session/:sessionId/generate-entries', async (req, res) => {
           }
         } else {
           // Fallback data when GPT is not available
-          enrichedData = {
-            summary: null,
-            topics: metadata.topics || [],
-            tags: metadata.tags || [],
-            jurisdiction: 'Philippines',
-            law_family: 'constitution',
-            key_concepts: [],
-            applicability: null,
-            penalties: null,
-            defenses: null,
-            time_limits: null,
-            required_forms: null,
-            related_sections: []
-          };
+          // Optional heuristic fill for constitution to avoid empty UI when GPT is down
+          const enableHeuristic = String(process.env.FEATURE_CONSTITUTION_HEURISTIC_FALLBACK || '').toLowerCase() === 'true';
+          if (session.category === 'constitution_1987' && enableHeuristic) {
+            const basicTags = [];
+            const words = String(canonicalCitation || '').split(/\W+/).filter(Boolean);
+            for (const w of words) {
+              const t = w.trim();
+              if (t.length >= 3 && basicTags.length < 8) basicTags.push(t);
+            }
+            enrichedData = {
+              title: metadata.title || canonicalCitation,
+              topics: [],
+              tags: basicTags,
+              jurisdiction: 'Philippines',
+              law_family: lawFamily,
+              applicability: null,
+              penalties: null,
+              defenses: null,
+              time_limits: null,
+              required_forms: null,
+              related_sections: [],
+              rights_callouts: [],
+              advice_points: [],
+              jurisprudence: [],
+              legal_bases: []
+            };
+          } else {
+            enrichedData = {
+              topics: metadata.topics || [],
+              tags: metadata.tags || [],
+              jurisdiction: 'Philippines',
+              law_family: lawFamily,
+              applicability: null,
+              penalties: null,
+              defenses: null,
+              time_limits: null,
+              required_forms: null,
+              related_sections: []
+            };
+          }
         }
+
+        // Helper: Convert number to Roman numeral
+        const toRomanNumeral = (n) => {
+          if (!n || n <= 0) return '';
+          const map = [
+            [1000, 'M'], [900, 'CM'], [500, 'D'], [400, 'CD'], [100, 'C'],
+            [90, 'XC'], [50, 'L'], [40, 'XL'], [10, 'X'],
+            [9, 'IX'], [5, 'V'], [4, 'IV'], [1, 'I']
+          ];
+          let result = '', num = Math.floor(n);
+          for (const [value, numeral] of map) {
+            while (num >= value) {
+              result += numeral;
+              num -= value;
+            }
+          }
+          return result;
+        };
+
+        // Normalize title format for constitution entries: "Article X Section Y - [Description]"
+        // Article numbers use Roman numerals, Section numbers use Arabic numerals
+        const normalizeConstitutionTitle = (title, metadata) => {
+          if (session.category !== 'constitution_1987') return title;
+          if (!title || typeof title !== 'string') return title;
+          
+          const { articleNumber, sectionNumber } = metadata || {};
+          if (!articleNumber) return title; // Skip if no article number
+          
+          // Extract article and section numbers
+          const artNum = parseInt(articleNumber, 10);
+          const secNum = sectionNumber ? parseInt(sectionNumber, 10) : null;
+          
+          // Convert article to Roman numeral
+          const artRoman = toRomanNumeral(artNum);
+          
+          // Extract description from title (remove any existing "Article X Section Y" prefix)
+          let description = title
+            .replace(/^(?:1987\s+Constitution,\s*)?Article\s+[IVXLCDM\d]+(?:\s+Section\s+\d+)?[:\s-]+/i, '')
+            .replace(/^Article\s+[IVXLCDM\d]+(?:\s+Section\s+\d+)?[:\s-]+/i, '')
+            .trim();
+          
+          // If no description extracted, use the original title (might be format already)
+          if (!description || description === title) {
+            description = title.replace(/^(?:1987\s+Constitution,\s*)?Article\s+[IVXLCDM\d]+(?:\s+Section\s+\d+)?[:\s-]*/i, '').trim() || title;
+          }
+          
+          // Build normalized title: Article in Roman, Section in Arabic
+          if (secNum) {
+            return `Article ${artRoman} Section ${secNum} - ${description}`;
+          } else {
+            return `Article ${artRoman} - ${description}`;
+          }
+        };
+        
+        // Normalize title after GPT enrichment
+        if (enrichedData.title && session.category === 'constitution_1987') {
+          enrichedData.title = normalizeConstitutionTitle(enrichedData.title, metadata);
+        }
+        
+        // Coalesce critical enrichment fields before persistence
+        const persistedJurisdiction = enrichedData.jurisdiction || (session.category === 'constitution_1987' ? 'Philippines' : null);
+        const persistedLawFamily = enrichedData.law_family || lawFamily;
+        const persistedEffectiveDate = enrichedData.effective_date || (session.category === 'constitution_1987' ? '1987-02-02' : null);
 
         // Generate vector embedding
         let embeddingLiteral = null;
         try {
           const contentForEmbedding = buildEmbeddingText({
             ...entryData,
-            summary: enrichedData.summary,
             topics: enrichedData.topics,
             tags: enrichedData.tags,
-            jurisdiction: enrichedData.jurisdiction,
-            law_family: enrichedData.law_family
+            jurisdiction: persistedJurisdiction,
+            law_family: persistedLawFamily
           });
           const embedding = await embedText(contentForEmbedding);
           embeddingLiteral = `[${embedding.join(',')}]`;
@@ -852,67 +1240,65 @@ router.post('/session/:sessionId/generate-entries', async (req, res) => {
         }
         
         // Create KB entry with comprehensive enrichment fields
-        await db.query(`
+        // Note: Duplicate check already done above before enrichment, so we can proceed with INSERT
+        const result = await db.query(`
           INSERT INTO kb_entries (
             entry_id, type, title, text, entry_subtype, canonical_citation,
-            summary, tags, jurisdiction, law_family, key_concepts, applicability,
+            tags, jurisdiction, law_family, applicability,
             penalties, defenses, time_limits, required_forms, elements, triggers,
             violation_code, violation_name, fine_schedule, license_action,
             apprehension_flow, incident, phases, forms, handoff, rights_callouts,
-            rights_scope, advice_points, jurisprudence, legal_bases, related_sections,
+            rights_scope, advice_points, jurisprudence, related_laws,
             section_id, status, source_urls, embedding, batch_release_id, published_at, 
-            provenance, created_by, created_at, updated_at
+            provenance, created_by, effective_date, amendment_date, subtype_fields
           ) VALUES (
-            $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, 
-            $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, 
-            $31, $32, $33, $34, $35, $36, $37, $38, $39, $40, $41, NOW(), NOW()
+            $1, $2, $3, $4, $5, $6, $7::text[], $8, $9, $10, $11, $12, $13, $14, $15, $16, 
+            $17, $18, $19, $20, $21, $22, $23, $24, $25, $26::text[], $27, $28::text[], $29::text[], 
+            $30::text[], $31, $32, $33, $34, $35, $36, $37, $38, $39, $40, $41
           )
         `, [
           entryId, // 1
           entryType, // 2
-          metadata.title || canonicalCitation, // 3
+          enrichedData.title || metadata.title || canonicalCitation, // 3
           text, // 4
-          entrySubtype, // 5
+          finalEntrySubtype, // 5
           canonicalCitation, // 6
-          enrichedData.summary, // 7
-          enrichedData.tags, // 8
-          enrichedData.jurisdiction, // 9
-          enrichedData.law_family, // 10
-          enrichedData.key_concepts, // 11
-          enrichedData.applicability, // 12
-          enrichedData.penalties, // 13
-          enrichedData.defenses, // 14
-          enrichedData.time_limits, // 15
-          enrichedData.required_forms, // 16
-          enrichedData.elements, // 17
-          enrichedData.triggers, // 18
-          enrichedData.violation_code, // 19
-          enrichedData.violation_name, // 20
-          enrichedData.fine_schedule, // 21
-          enrichedData.license_action, // 22
-          enrichedData.apprehension_flow, // 23
-          enrichedData.incident, // 24
-          enrichedData.phases, // 25
-          enrichedData.forms, // 26
-          enrichedData.handoff, // 27
-          enrichedData.rights_callouts, // 28
-          enrichedData.rights_scope, // 29
-          enrichedData.advice_points, // 30
-          enrichedData.jurisprudence, // 31
-          enrichedData.legal_bases, // 32
-          enrichedData.related_sections, // 33
-          generateSectionId(entryId), // 34
-          'unreleased', // 35
-          JSON.stringify([doc.canonical_url]), // 36
-          embeddingLiteral, // 37
-          null, // 38 - No batch assigned yet
-          null, // 39 - Not published yet
+          (Array.isArray(enrichedData.tags) ? enrichedData.tags : []), // 7 TEXT[]
+          persistedJurisdiction, // 8
+          persistedLawFamily, // 9
+          enrichedData.applicability, // 10 TEXT
+          enrichedData.penalties, // 11 TEXT
+          enrichedData.defenses, // 12 TEXT
+          enrichedData.time_limits, // 13 TEXT
+          enrichedData.required_forms, // 14 TEXT
+          enrichedData.elements, // 15 TEXT
+          enrichedData.triggers, // 16 TEXT
+          enrichedData.violation_code, // 17
+          enrichedData.violation_name, // 18
+          enrichedData.fine_schedule, // 19 TEXT
+          enrichedData.license_action, // 20
+          enrichedData.apprehension_flow, // 21 TEXT
+          enrichedData.incident, // 22
+          enrichedData.phases, // 23 TEXT
+          enrichedData.forms, // 24 TEXT
+          enrichedData.handoff, // 25 TEXT
+          (Array.isArray(enrichedData.rights_callouts) ? enrichedData.rights_callouts : []), // 26 TEXT[]
+          enrichedData.rights_scope, // 27 TEXT
+          (Array.isArray(enrichedData.advice_points) ? enrichedData.advice_points : []), // 28 TEXT[]
+          (Array.isArray(enrichedData.jurisprudence) ? enrichedData.jurisprudence : []), // 29 TEXT[]
+          (Array.isArray(enrichedData.related_laws) ? enrichedData.related_laws : []), // 30 TEXT[]
+          generateSectionId(entryId), // 31
+          'unreleased', // 32
+          JSON.stringify([String(doc.canonical_url || '').split('#')[0]]), // 33 strip any fragment; keep pure scraping URL
+          embeddingLiteral, // 34
+          null, // 35 - No batch assigned yet
+          null, // 36 - Not published yet
               JSON.stringify({
                 source: 'lawphil_scraping',
                 scraper_id: 'constitution_1987_parser',
                 extraction_method: 'html_parsing',
-                gpt_model: gptAvailable ? (process.env.OPENAI_CHAT_MODEL || 'gpt-4o') : null,
-                gpt_version: gptAvailable ? '2024-10-08' : null,
+            gpt_model: gptAvailable ? (process.env.OPENAI_CHAT_MODEL || 'gpt-3.5-turbo') : null,
+            gpt_version: gptAvailable ? '2024-10-08' : null,
                 validation_method: 'schema_validation',
                 timestamp: new Date().toISOString(),
                 // Session tracking
@@ -925,10 +1311,14 @@ router.post('/session/:sessionId/generate-entries', async (req, res) => {
                 // GPT enrichment info
                 gpt_enriched: gptAvailable,
                 enriched_at: gptAvailable ? new Date().toISOString() : null
-              }), // 40
-          1 // 41 - Default user ID
+          }), // 37
+          1, // 38 - Default user ID
+          persistedEffectiveDate, // 39
+          enrichedData.amendment_date, // 40
+          JSON.stringify(subtypeFields) // 41 - subtype_fields
         ]);
         
+        // Entry was successfully inserted (duplicate check passed above)
         console.log(`📝 Created KB entry: ${entryId}`);
         createdCount++;
         
@@ -941,7 +1331,13 @@ router.post('/session/:sessionId/generate-entries', async (req, res) => {
       }
     }
     
-    console.log(`✅ Entry generation completed: ${createdCount} created, ${skippedCount} skipped, ${errors.length} errors`);
+    // Clear cancel flag if it was set
+    if (cancelGenerationBySession.get(sessionId)) {
+      cancelGenerationBySession.delete(sessionId);
+      console.log(`🛑 Entry generation stopped early for session ${sessionId}: ${createdCount} created, ${skippedCount} skipped, ${errors.length} errors`);
+    } else {
+      console.log(`✅ Entry generation completed: ${createdCount} created, ${skippedCount} skipped, ${errors.length} errors`);
+    }
     
     res.json({
       success: true,
@@ -951,7 +1347,7 @@ router.post('/session/:sessionId/generate-entries', async (req, res) => {
       skipped_count: skippedCount,
       error_count: errors.length,
       errors: errors,
-      message: `Generated ${createdCount} KB entries from ${documents.length} documents`
+      message: `Generated ${createdCount} KB entries from ${documents.length} documents${cancelGenerationBySession.get(sessionId) ? ' (stopped early)' : ''}`
     });
     
   } catch (error) {
@@ -1000,19 +1396,29 @@ router.post('/release-entries', async (req, res) => {
       return res.status(400).json({ error: 'Entry IDs array is required' });
     }
     
-    // Update entries to published status
+    // Create a new batch release record
+    const batchResult = await db.query(`
+      INSERT INTO batch_releases (category, status, published_by, notes)
+      VALUES ('manual_release', 'published', 'system', 'Manual release of selected entries')
+      RETURNING id
+    `);
+    
+    const batchReleaseId = batchResult.rows[0].id;
+    
+    // Update entries to published status with batch_release_id
     const result = await db.query(`
       UPDATE kb_entries 
-      SET published_at = NOW(), status = 'released', updated_at = NOW()
-      WHERE entry_id = ANY($1) AND published_at IS NULL
+      SET published_at = NOW(), status = 'released', batch_release_id = $1, updated_at = NOW()
+      WHERE entry_id = ANY($2) AND published_at IS NULL
       RETURNING entry_id, title
-    `, [entryIds]);
+    `, [batchReleaseId, entryIds]);
     
-    console.log(`✅ Released ${result.rows.length} entries`);
+    console.log(`✅ Released ${result.rows.length} entries with batch ID: ${batchReleaseId}`);
     
     res.json({ 
       success: true, 
       released_count: result.rows.length,
+      batch_release_id: batchReleaseId,
       released_entries: result.rows
     });
     
@@ -1030,19 +1436,29 @@ router.post('/release-entries', async (req, res) => {
  */
 router.post('/release-all-entries', async (req, res) => {
   try {
-    // Update all unpublished entries to published status
-    const result = await db.query(`
-      UPDATE kb_entries 
-      SET published_at = NOW(), status = 'released', updated_at = NOW()
-      WHERE published_at IS NULL
-      RETURNING entry_id, title
+    // Create a new batch release record
+    const batchResult = await db.query(`
+      INSERT INTO batch_releases (category, status, published_by, notes)
+      VALUES ('bulk_release', 'published', 'system', 'Bulk release of all draft entries')
+      RETURNING id
     `);
     
-    console.log(`✅ Released all ${result.rows.length} draft entries`);
+    const batchReleaseId = batchResult.rows[0].id;
+    
+    // Update all unpublished entries to published status with batch_release_id
+    const result = await db.query(`
+      UPDATE kb_entries 
+      SET published_at = NOW(), status = 'released', batch_release_id = $1, updated_at = NOW()
+      WHERE published_at IS NULL
+      RETURNING entry_id, title
+    `, [batchReleaseId]);
+    
+    console.log(`✅ Released all ${result.rows.length} draft entries with batch ID: ${batchReleaseId}`);
     
     res.json({ 
       success: true, 
       released_count: result.rows.length,
+      batch_release_id: batchReleaseId,
       released_entries: result.rows
     });
     

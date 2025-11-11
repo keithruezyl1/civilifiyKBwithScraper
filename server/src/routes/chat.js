@@ -80,7 +80,7 @@ function sliceContext(entry, question) {
 
 const router = Router();
 let openai = null;
-const CHAT_MODEL = process.env.OPENAI_CHAT_MODEL || 'gpt-4o';
+const CHAT_MODEL = process.env.OPENAI_CHAT_MODEL || 'gpt-3.5-turbo';
 
 // Initialize OpenAI only if API key is available
 if (process.env.OPENAI_API_KEY && process.env.OPENAI_API_KEY !== 'your-actual-openai-api-key-here') {
@@ -195,7 +195,7 @@ router.post('/', async (req, res) => {
 
     // Optional reranker using a cheaper model; guarded by env flag
     const useReranker = String(process.env.CHAT_USE_RERANKER || '').toLowerCase() === 'true';
-    const rerankModel = process.env.CHAT_RERANK_MODEL || 'gpt-4o-mini';
+    const rerankModel = process.env.CHAT_RERANK_MODEL || 'gpt-3.5-turbo';
     if (useReranker && matches.length > 2) {
       const items = matches.map((m, i) => ({
         id: m.entry_id,

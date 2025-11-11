@@ -1,12 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import Modal from './Modal/Modal';
 import Confetti from './Confetti/Confetti';
+import { useBackgroundProcess } from '../contexts/BackgroundProcessContext';
 const API = process.env.REACT_APP_API_BASE || 'http://localhost:4000';
 
 interface ScrapeEntriesModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSuccess?: () => void;
+  initialSessionId?: string | null;
 }
 
 interface ScrapingSession {
@@ -28,7 +30,8 @@ interface ScrapingStatus {
   finished_at?: string;
 }
 
-export default function ScrapeEntriesModal({ isOpen, onClose, onSuccess }: ScrapeEntriesModalProps) {
+export default function ScrapeEntriesModal({ isOpen, onClose, onSuccess, initialSessionId }: ScrapeEntriesModalProps) {
+  const { addProcess } = useBackgroundProcess();
   const [url, setUrl] = useState('');
   const [isScraping, setIsScraping] = useState(false);
   const [sessionId, setSessionId] = useState<string | null>(null);
@@ -57,6 +60,7 @@ export default function ScrapeEntriesModal({ isOpen, onClose, onSuccess }: Scrap
   const [showSaveBatchPrompt, setShowSaveBatchPrompt] = useState(false);
   const [showBatchSavedModal, setShowBatchSavedModal] = useState(false);
   const [showConfetti, setShowConfetti] = useState(false);
+  const [isCancellingGen, setIsCancellingGen] = useState(false);
 
   // Handle clearing session and resetting modal
   const handleConfirmClear = async () => {
@@ -254,6 +258,11 @@ export default function ScrapeEntriesModal({ isOpen, onClose, onSuccess }: Scrap
         skipped: result.skipped_count || 0,
         errors: result.error_count || 0
       });
+      // Invalidate cached entries so Dashboard refetches from DB
+      try {
+        localStorage.removeItem('law_entries');
+        localStorage.setItem('entries_needs_reload', String(Date.now()));
+      } catch {}
       setShowSuccessModal(true);
       console.log('✅ Entry generation completed:', result);
       
@@ -263,6 +272,22 @@ export default function ScrapeEntriesModal({ isOpen, onClose, onSuccess }: Scrap
       alert(`Failed to generate entries: ${error instanceof Error ? error.message : 'Unknown error'}`);
     } finally {
       setIsGenerating(false);
+      setIsCancellingGen(false);
+    }
+  };
+
+  // Request cooperative cancel on server (keeps already created entries)
+  const stopGeneration = async () => {
+    if (!sessionId) return;
+    try {
+      setIsCancellingGen(true);
+      const resp = await fetch(`${API}/api/scraping/session/${sessionId}/cancel-generation`, {
+        method: 'POST'
+      });
+      if (!resp.ok) throw new Error('Failed to request cancel');
+    } catch (e) {
+      console.warn('Cancel generation failed', e);
+      setIsCancellingGen(false);
     }
   };
 
@@ -376,6 +401,77 @@ export default function ScrapeEntriesModal({ isOpen, onClose, onSuccess }: Scrap
     }
   }, [isOpen, isScraping]);
 
+  // Reset modal state when opening with initial session ID
+  useEffect(() => {
+    if (isOpen && initialSessionId) {
+      console.log('Resetting modal state for session:', initialSessionId);
+      // Reset all state to ensure clean slate
+      setUrl('');
+      setIsScraping(false);
+      setSessionId(null);
+      setStatus(null);
+      setError(null);
+      setProgress(0);
+      setShowNotepad(false);
+      setNotepadDocs([]);
+      setShowSuccessView(false);
+      setNormalizedView(true);
+      setNotepadSearchQuery('');
+      setIsClearingData(false);
+      setIsGenerating(false);
+      setGenerationResult(null);
+      setGenerationProgress({
+        total: 0,
+        processed: 0,
+        created: 0,
+        skipped: 0,
+        errors: 0
+      });
+      setShowConfirmModal(false);
+      setShowSuccessModal(false);
+      setSavingBatch(false);
+      setBatchDesc('');
+      setShowSaveBatchPrompt(false);
+      setShowBatchSavedModal(false);
+      setShowConfetti(false);
+    }
+  }, [isOpen, initialSessionId]);
+
+  // Handle initial session ID - load completed session data
+  useEffect(() => {
+    if (isOpen && initialSessionId && !isScraping) {
+      console.log('Loading session data for:', initialSessionId);
+      // Load the specific session data and show success view
+      const loadSessionData = async () => {
+        try {
+          const response = await fetch(`${API}/api/scraping/session/${initialSessionId}/status`);
+          const data = await response.json();
+          
+          console.log('Session data loaded:', data);
+          
+          if (data.success && data.status) {
+            setSessionId(initialSessionId);
+            setStatus(data.status);
+            setUrl(data.status.root_url || '');
+            
+            console.log('Session status:', data.status.status);
+            
+            // If the session is completed, show success view
+            if (data.status.status === 'completed') {
+              console.log('Showing success view for completed session');
+              setShowSuccessView(true);
+              onSuccess?.();
+            }
+          }
+        } catch (error) {
+          console.error('Failed to load session data:', error);
+        }
+      };
+      
+      loadSessionData();
+    }
+  }, [isOpen, initialSessionId, isScraping, onSuccess]);
+
   // When opening in success view, backfill with the latest completed session so counts and URL appear
   useEffect(() => {
     const loadLatest = async () => {
@@ -442,6 +538,14 @@ export default function ScrapeEntriesModal({ isOpen, onClose, onSuccess }: Scrap
       }
 
       setSessionId(startData.sessionId);
+      
+      // Add background process tracking
+      addProcess({
+        type: 'scraping',
+        status: 'running',
+        sessionId: startData.sessionId,
+        title: `Scraping ${url.includes('/acts/') ? 'Acts' : 'Constitution'} from ${url}`,
+      });
 
       // Process the URL - use different endpoint for Acts
       const isActsUrl = url.includes('/acts/');
@@ -469,6 +573,16 @@ export default function ScrapeEntriesModal({ isOpen, onClose, onSuccess }: Scrap
       await fetch(`${API}/api/scraping/session/${startData.sessionId}/complete`, {
         method: 'POST',
       });
+
+      // Immediately load final status to populate counts (avoid 0-of-0 race)
+      try {
+        const sresp = await fetch(`${API}/api/scraping/session/${startData.sessionId}/status?t=${Date.now()}`);
+        const sj = await sresp.json();
+        if (sj?.success && sj.status) {
+          setStatus(sj.status);
+          setShowSuccessView(true);
+        }
+      } catch {}
 
     } catch (err) {
       console.error('Scraping failed:', err);
@@ -660,10 +774,24 @@ export default function ScrapeEntriesModal({ isOpen, onClose, onSuccess }: Scrap
             {isGenerating && (
               <div style={{ display: 'flex', justifyContent: 'center', padding: '24px 0' }}>
                 <div className="wave-text" aria-live="polite" aria-busy="true">
-                  {['G','e','n','e','r','a','t','i','n','g',' ','e','n','t','r','i','e','s','.','.','.'].map((ch, idx) => (
+                  {['G','e','n','e','r','a','t','i','n','g','\u00A0','e','n','t','r','i','e','s','.','.','.'].map((ch, idx) => (
                     <span key={idx}>{ch}</span>
                   ))}
                 </div>
+              </div>
+            )}
+
+            {isGenerating && (
+              <div style={{ display: 'flex', justifyContent: 'center', marginTop: 8 }}>
+                <button
+                  type="button"
+                  className="btn btn-outline-danger"
+                  onClick={stopGeneration}
+                  disabled={!sessionId || isCancellingGen}
+                  title="Stop after the current document; already-created entries are kept"
+                >
+                  {isCancellingGen ? 'Stopping…' : 'Stop generation'}
+                </button>
               </div>
             )}
 

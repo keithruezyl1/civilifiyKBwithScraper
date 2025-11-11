@@ -162,9 +162,8 @@ const UpsertSchema = z.object({
   advice_points: z.array(z.string()).optional(),
   topics: z.array(z.string()).optional(),
   jurisprudence: z.array(z.string()).optional(),
-  // Be permissive: accept any array for relations to avoid losing data due to minor shape differences
-  legal_bases: z.any().optional(),
-  related_sections: z.any().optional(),
+  // Relations: accept related_laws (new). Map legacy keys at handler level if needed
+  related_laws: z.any().optional(),
   created_by_name: z.string().optional(),
   verified: z.boolean().optional(),
   verified_by: z.string().optional(),
@@ -238,7 +237,7 @@ router.post('/entries', async (req, res) => {
          amendment_date=$11,
          last_reviewed=$12,
          visibility=$13,
-         source_urls=$14,
+         source_urls=kb_entries.source_urls,
          elements=$15,
          penalties=$16,
          defenses=$17,
@@ -271,9 +270,8 @@ router.post('/entries', async (req, res) => {
          advice_points=$44,
          topics=$45,
          jurisprudence=$46,
-         legal_bases=$47,
-         related_sections=$48,
-         created_by_name=$49,
+         related_laws=$47,
+         created_by_name=$48,
          verified=NULL,
          verified_by=NULL,
          verified_at=NULL,
@@ -327,8 +325,7 @@ router.post('/entries', async (req, res) => {
         JSON.stringify(parsed.advice_points || []),
         JSON.stringify(parsed.topics || []),
         JSON.stringify(parsed.jurisprudence || []),
-        JSON.stringify(parsed.legal_bases || []),
-        JSON.stringify(parsed.related_sections || []),
+        JSON.stringify(parsed.related_laws || []),
         createdByName,
 
         embeddingLiteral,
@@ -404,7 +401,7 @@ router.put('/entries/:entryId', async (req, res) => {
          amendment_date=$13,
          last_reviewed=now()::date,
          visibility=$14,
-         source_urls=$15,
+         source_urls=kb_entries.source_urls,
          elements=$16,
          penalties=$17,
          defenses=$18,
@@ -437,8 +434,7 @@ router.put('/entries/:entryId', async (req, res) => {
          advice_points=$45,
          topics=$46,
          jurisprudence=$47,
-         legal_bases=$48,
-         related_sections=$49,
+         related_laws=$48,
          verified=NULL,
          verified_by=NULL,
          verified_at=NULL,
@@ -493,8 +489,7 @@ router.put('/entries/:entryId', async (req, res) => {
         JSON.stringify(parsed.advice_points || []),
         JSON.stringify(parsed.topics || []),
         JSON.stringify(parsed.jurisprudence || []),
-        JSON.stringify(parsed.legal_bases || []),
-        JSON.stringify(parsed.related_sections || []),
+        JSON.stringify(parsed.related_laws || []),
 
         embeddingLiteral,
       ]
@@ -507,13 +502,17 @@ router.put('/entries/:entryId', async (req, res) => {
   }
 });
 
-// Bulk delete: all or by date (YYYY-MM-DD)
+// Bulk delete: all, by date (YYYY-MM-DD), or by status
 router.delete('/entries', async (req, res) => {
   try {
-    const { date } = req.query || {};
+    const { date, status } = req.query || {};
     if (date) {
       await query('delete from kb_entries where created_at::date = $1::date', [String(date)]);
       return res.json({ success: true, scope: 'date', date });
+    }
+    if (status) {
+      await query('delete from kb_entries where status = $1', [String(status)]);
+      return res.json({ success: true, scope: 'status', status });
     }
     await query('delete from kb_entries', []);
     res.json({ success: true, scope: 'all' });

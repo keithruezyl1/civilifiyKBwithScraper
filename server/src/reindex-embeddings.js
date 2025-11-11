@@ -16,7 +16,7 @@ async function reindexAll(limitBatch = 200) {
               issuance_no, instrument_no, supersedes, steps_brief, forms_required, failure_states,
               violation_code, violation_name, license_action, fine_schedule, apprehension_flow,
               incident, phases, forms, handoff, rights_callouts, rights_scope, advice_points,
-              topics, jurisprudence, legal_bases, related_sections
+              topics, jurisprudence, related_laws
          from kb_entries
          order by entry_id
          limit $1 offset $2`,

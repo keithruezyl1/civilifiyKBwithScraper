@@ -1,17 +1,7 @@
 
 # Civilify Law Entry App
 
-<!-- Replace with your project logo -->
-<p align="center">
-  <img src="[Your Project Logo URL Here]" alt="Civilify Law Entry App Logo" width="200"/>
-</p>
-
-[![License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Documentation](https://img.shields.io/badge/Documentation-Comprehensive-brightgreen)](JSON_ENTRY_CREATION_GUIDE.md)
-[![Contribute](https://img.shields.io/badge/Contributions-Welcome-yellow)](CONTRIBUTING.md)
-[![Maintenance](https://img.shields.io/badge/Maintained%3F-yes-green.svg)](https://GitHub.com/Naereen/StrapDown.js/graphs/commit-activity)
-
-Civilify Law Entry App is a tool designed to streamline the creation, import, and management of legal entries in a structured format. It provides comprehensive guides and resources for developers and legal professionals to effectively utilize the application, ensuring accuracy, consistency, and ease of access to legal information.
+Civilify Law Entry App streamlines creating, importing, validating, and managing legal knowledge base entries. See the main `README.md` in this folder for full setup. This local README highlights authoring docs.
 
 ## Table of Contents
 
@@ -34,7 +24,7 @@ The primary goal of Civilify Law Entry App is to simplify the process of creatin
 
 ### 📖 JSON Entry Creation Guide
 
-*   **File:** `JSON_ENTRY_CREATION_GUIDE.md`
+*   **File:** `docs/JSON_ENTRY_CREATION_GUIDE.md`
 *   **Purpose:** A detailed guide for creating valid JSON entries for all supported entry types.
 *   **Use Case:** Ideal for programmatic entry creation or when using AI tools.
 *   **Includes:**
@@ -46,7 +36,7 @@ The primary goal of Civilify Law Entry App is to simplify the process of creatin
 
 ### 📜 Constitution Provision Guide
 
-*   **File:** `CONSTITUTION_PROVISION_GUIDE.md`
+*   **File:** `docs/CONSTITUTION_PROVISION_GUIDE.md`
 *   **Purpose:** A specialized guide specifically for creating Constitution Provision entries related to the 1987 Philippine Constitution.
 *   **Use Case:** Essential when creating entries for constitutional provisions.
 *   **Includes:**
@@ -58,7 +48,7 @@ The primary goal of Civilify Law Entry App is to simplify the process of creatin
 
 ### 🧪 Test Entry File
 
-*   **File:** `test_entry.json`
+*   **File:** `docs/test_entry.json`
 *   **Purpose:** Sample JSON file with valid entries for testing the import functionality.
 *   **Use Case:** Use to test the import feature or as a template for creating new entries.
 *   **Includes:**

@@ -154,11 +154,9 @@ export function buildEmbeddingText(entry) {
   addIf(lines, 'Topics', joinStrings(e.topics));
   addIf(lines, 'Jurisprudence', joinStrings(e.jurisprudence));
 
-  // Relations
-  const legalBasesText = flattenRelations(e.legal_bases);
-  if (legalBasesText) lines.push(`Legal Bases: ${legalBasesText}`);
-  const relatedSectionsText = flattenRelations(e.related_sections);
-  if (relatedSectionsText) lines.push(`Related Sections: ${relatedSectionsText}`);
+  // Relations (Related Laws only)
+  const relatedLawsText = flattenRelations(e.related_laws);
+  if (relatedLawsText) lines.push(`Related Laws: ${relatedLawsText}`);
 
   return lines.join('\n\n');
 }

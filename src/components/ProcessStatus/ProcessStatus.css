@@ -1,0 +1,25 @@
+.process-status {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-left: 16px;
+}
+
+.process-item {
+  display: flex;
+  align-items: center;
+}
+
+.process-link {
+  color: white;
+  text-decoration: underline;
+  font-style: italic;
+  cursor: pointer;
+  font-size: 14px;
+  transition: opacity 0.2s ease;
+}
+
+.process-link:hover {
+  opacity: 0.8;
+}
+
