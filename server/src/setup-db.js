@@ -58,6 +58,7 @@ async function setupDatabase() {
       join(__dirname, '../sql/022_add_dates.sql'),
       join(__dirname, '../sql/023_restore_subtype_fields.sql'),
       join(__dirname, '../sql/027_related_laws.sql'),
+      join(__dirname, '../sql/030_add_historical_context.sql'),
       // Skip 024_fix_array_fields: array types are created correctly by 025 rebuild
       // Idempotent post-initial migrations (archived 007/008)
       join(__dirname, '../sql/011_notifications.sql'),

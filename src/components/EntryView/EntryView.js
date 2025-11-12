@@ -254,11 +254,11 @@ const EntryView = ({ entry, onEdit, onDelete, onExport, teamMemberNames = {} }) 
 
     // Helper function to render a field with proper alignment
     const renderField = (label, value, type = 'text') => {
-      let displayValue = 'Empty';
+      let displayValue = 'NA';
       
       if (value !== null && value !== undefined && value !== '') {
         if (type === 'array' && Array.isArray(value)) {
-          displayValue = value.length > 0 ? value.join(', ') : 'Empty';
+          displayValue = value.length > 0 ? value.join(', ') : 'NA';
         } else if (type === 'object' && typeof value === 'object') {
           displayValue = JSON.stringify(value, null, 2);
         } else if (type === 'date' && value) {
@@ -295,19 +295,19 @@ const EntryView = ({ entry, onEdit, onDelete, onExport, teamMemberNames = {} }) 
                 periodUnit !== 'Not available') {
               displayValue = `${periodValue} ${periodUnit}`;
             } else {
-              displayValue = 'No Prescriptive Period';
+              displayValue = 'NA';
             }
           } else if (value === null || value === undefined || value === '' || value === 'NA' || value === 'na' || value === 'N/A' || value === 'Not Available' || value === 'Not available') {
-            displayValue = 'No Prescriptive Period';
+            displayValue = 'NA';
           } else {
-            displayValue = 'No Prescriptive Period';
+            displayValue = 'NA';
           }
         } catch (error) {
           // If parsing fails, check for simple NA values
           if (value === null || value === undefined || value === '' || value === 'NA' || value === 'na' || value === 'N/A' || value === 'Not Available' || value === 'Not available') {
-            displayValue = 'No Prescriptive Period';
+            displayValue = 'NA';
           } else {
-            displayValue = 'No Prescriptive Period';
+            displayValue = 'NA';
           }
         }
       }
@@ -321,17 +321,32 @@ const EntryView = ({ entry, onEdit, onDelete, onExport, teamMemberNames = {} }) 
     };
 
     // Helper function to render array fields with proper structure
+    // Handles both arrays and JSON strings (for TEXT columns storing arrays)
     const renderArrayFieldStructured = (fieldName, items, label, itemRenderer = null) => {
+      // Parse items if it's a JSON string (from TEXT column)
+      let parsedItems = items;
+      if (items && typeof items === 'string' && items.trim() !== '') {
+        try {
+          parsedItems = JSON.parse(items);
+        } catch (e) {
+          // If parsing fails, treat as regular string (not JSON)
+          parsedItems = items;
+        }
+      }
+      
+      // Check if we have valid array with items
+      const hasItems = parsedItems && Array.isArray(parsedItems) && parsedItems.length > 0;
+      
       return (
         <div className="field-group" key={fieldName}>
           <h4 className="field-group-title">{label}</h4>
           <div className="field-group-content">
-            {items && Array.isArray(items) && items.length > 0 ? (
+            {hasItems ? (
               itemRenderer ? (
-                items.map((item, index) => itemRenderer(item, index))
+                parsedItems.map((item, index) => itemRenderer(item, index))
               ) : (
                 <ul className="array-list">
-                  {items.map((item, index) => (
+                  {parsedItems.map((item, index) => (
                     <li key={index} className="array-item">
                       {typeof item === 'object' ? JSON.stringify(item, null, 2) : String(item)}
                     </li>
@@ -339,7 +354,7 @@ const EntryView = ({ entry, onEdit, onDelete, onExport, teamMemberNames = {} }) 
                 </ul>
               )
             ) : (
-              <div className="empty-field">Empty</div>
+              <div className="empty-field">NA</div>
             )}
           </div>
         </div>
@@ -383,7 +398,7 @@ const EntryView = ({ entry, onEdit, onDelete, onExport, teamMemberNames = {} }) 
                 ))}
               </div>
             ) : (
-              <div className="empty-field">Empty</div>
+              <div className="empty-field">NA</div>
             )}
           </div>
         </div>
@@ -458,8 +473,22 @@ const EntryView = ({ entry, onEdit, onDelete, onExport, teamMemberNames = {} }) 
       );
     };
 
+    // Extract prescriptive_period and standard_of_proof from subtype_fields
+    const subtypeFields = (() => {
+      try {
+        if (currentEntry.subtype_fields) {
+          if (typeof currentEntry.subtype_fields === 'string') {
+            return JSON.parse(currentEntry.subtype_fields);
+          }
+          return currentEntry.subtype_fields;
+        }
+      } catch {}
+      return {};
+    })();
+
     const pp = (() => {
-      const v = currentEntry.prescriptive_period;
+      // Check subtype_fields first, then fallback to top-level
+      const v = subtypeFields.prescriptive_period || currentEntry.prescriptive_period;
       if (!v) return null;
       try {
         if (typeof v === 'string') {
@@ -472,6 +501,8 @@ const EntryView = ({ entry, onEdit, onDelete, onExport, teamMemberNames = {} }) 
       } catch {}
       return String(v);
     })();
+
+    const standardOfProof = subtypeFields.standard_of_proof || currentEntry.standard_of_proof || null;
 
     // Function to render subtype-specific fields
     const renderSubtypeFields = (subtypeFields, entrySubtype) => {
@@ -520,13 +551,12 @@ const EntryView = ({ entry, onEdit, onDelete, onExport, teamMemberNames = {} }) 
         return (
           <div className="type-specific-fields">
             <div className="info-grid">
-              {renderField('Prescriptive Period', pp || 'Empty')}
-              {renderField('Standard of Proof', currentEntry.standard_of_proof)}
+              {renderField('Prescriptive Period', pp || null)}
+              {renderField('Standard of Proof', standardOfProof || null)}
             </div>
             {renderArrayFieldStructured('elements', currentEntry.elements, 'Elements')}
             {renderArrayFieldStructured('penalties', currentEntry.penalties, 'Penalties')}
             {renderArrayFieldStructured('defenses', currentEntry.defenses, 'Defenses')}
-            {renderSubtypeFields(currentEntry.subtype_fields, currentEntry.entry_subtype)}
           </div>
         );
 
@@ -821,12 +851,47 @@ const EntryView = ({ entry, onEdit, onDelete, onExport, teamMemberNames = {} }) 
 
 
           {/* Legal Elements */}
-          {currentEntry.elements && (
-            <div className="entry-section">
-              <h3>Legal Elements</h3>
-              <div className="text-content">{currentEntry.elements}</div>
-            </div>
-          )}
+          {(() => {
+            // Parse elements if it's a JSON string (from TEXT column)
+            let parsedElements = currentEntry.elements;
+            if (currentEntry.elements && typeof currentEntry.elements === 'string' && currentEntry.elements.trim() !== '') {
+              try {
+                parsedElements = JSON.parse(currentEntry.elements);
+              } catch (e) {
+                // If parsing fails, treat as regular string
+                parsedElements = currentEntry.elements;
+              }
+            }
+            
+            // Display as array if it's an array, otherwise as text, or NA if empty
+            if (Array.isArray(parsedElements) && parsedElements.length > 0) {
+              return (
+                <div className="entry-section">
+                  <h3>Legal Elements</h3>
+                  <div className="tags-list">
+                    {parsedElements.map((element, index) => (
+                      <span key={index} className="tag">{element}</span>
+                    ))}
+                  </div>
+                </div>
+              );
+            } else if (parsedElements && parsedElements !== '' && !Array.isArray(parsedElements)) {
+              return (
+                <div className="entry-section">
+                  <h3>Legal Elements</h3>
+                  <div className="text-content">{String(parsedElements)}</div>
+                </div>
+              );
+            } else {
+              // Display NA when empty
+              return (
+                <div className="entry-section">
+                  <h3>Legal Elements</h3>
+                  <div className="text-content">NA</div>
+                </div>
+              );
+            }
+          })()}
 
           {/* Triggers */}
           {currentEntry.triggers && (

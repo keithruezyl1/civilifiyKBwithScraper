@@ -12,9 +12,168 @@ if (process.env.OPENAI_API_KEY && process.env.OPENAI_API_KEY !== 'your-openai-ap
  * Enrich a KB entry using GPT-4o to fill in missing fields
  * Comprehensive enrichment for all entry and sub-entry types
  * @param {Object} entryData - The entry data to enrich
+ * @param {Object} options - Optional parameters
+ * @param {number} options.entryIndex - The index of this entry in the batch (0-based)
  * @returns {Object} - Enriched entry data
  */
-export async function enrichEntryWithGPT(entryData) {
+/**
+ * Get appropriate fallback related law based on entry type and subtype
+ */
+function getRelatedLawsFallback(entryType, entrySubtype, entryData) {
+  const cit = String(entryData?.canonical_citation || '').toLowerCase();
+  const ttl = String(entryData?.title || '').toLowerCase();
+  // Try to get metadata from entryData or from entry_id pattern
+  const metadata = entryData?.metadata || {};
+  let actNumber = metadata?.actNumber || null;
+  
+  // If actNumber not in metadata, try to extract from entry_id or canonical_citation
+  if (!actNumber) {
+    const entryId = String(entryData?.entry_id || '').toUpperCase();
+    const actMatch = entryId.match(/ACT-(\d+)-/);
+    if (actMatch) {
+      actNumber = actMatch[1];
+    } else {
+      // Try to extract from citation
+      const citActMatch = cit.match(/act\s+(?:no\.?\s*)?(\d+)/i);
+      if (citActMatch) {
+        actNumber = citActMatch[1];
+      }
+    }
+  }
+  
+  // Constitution entries
+  if (entryType === 'constitution_provision') {
+    // If already in Article III, use general Constitution
+    if (cit.includes('article iii') || cit.includes('article 3') || ttl.includes('article iii') || ttl.includes('article 3')) {
+      return {
+        citation: '1987 Constitution of the Philippines (General)',
+        url: 'https://lawphil.net/consti/cons1987.html'
+      };
+    }
+    // Otherwise, use Article III (Bill of Rights) as fallback
+    return {
+      citation: '1987 Constitution, Article III - Bill of Rights',
+      url: 'https://lawphil.net/consti/cons1987.html'
+    };
+  }
+  
+  // Statute entries
+  if (entryType === 'statute_section') {
+    // Revised Penal Code (Act 3815) - use Bill of Rights
+    if (entrySubtype === 'act' && 
+        (actNumber === '3815' || actNumber === 3815 || 
+         cit.includes('act 3815') || cit.includes('act no. 3815') || 
+         cit.includes('revised penal code') || ttl.includes('revised penal code'))) {
+      return {
+        citation: '1987 Constitution, Article III - Bill of Rights',
+        url: 'https://lawphil.net/consti/cons1987.html'
+      };
+    }
+    
+    // Other 1930 Acts - use Constitution or Administrative Code based on content
+    if (entrySubtype === 'act') {
+      // Check if it's administrative/organizational
+      if (ttl.includes('administrative') || ttl.includes('supreme court') || 
+          ttl.includes('judiciary') || ttl.includes('personnel') || 
+          cit.includes('administrative code')) {
+        return {
+          citation: 'Administrative Code of 1987 (Executive Order 292)',
+          url: 'https://lawphil.net/executive/execord/eo1987/eo_292_1987.html'
+        };
+      }
+      // Default to Constitution
+      return {
+        citation: '1987 Constitution of the Philippines (General)',
+        url: 'https://lawphil.net/consti/cons1987.html'
+      };
+    }
+    
+    // Commonwealth Acts - use Constitution or Administrative Code
+    if (entrySubtype === 'commonwealth_act') {
+      // Check if administrative
+      if (ttl.includes('administrative') || cit.includes('administrative code')) {
+        return {
+          citation: 'Administrative Code of 1987 (Executive Order 292)',
+          url: 'https://lawphil.net/executive/execord/eo1987/eo_292_1987.html'
+        };
+      }
+      return {
+        citation: '1987 Constitution of the Philippines (General)',
+        url: 'https://lawphil.net/consti/cons1987.html'
+      };
+    }
+    
+    // Republic Acts - use Constitution
+    if (entrySubtype === 'republic_act') {
+      return {
+        citation: '1987 Constitution of the Philippines (General)',
+        url: 'https://lawphil.net/consti/cons1987.html'
+      };
+    }
+    
+    // Batas Pambansa - use Constitution
+    if (entrySubtype === 'mga_batas_pambansa') {
+      return {
+        citation: '1987 Constitution of the Philippines (General)',
+        url: 'https://lawphil.net/consti/cons1987.html'
+      };
+    }
+    
+    // Default for other statute types
+    return {
+      citation: '1987 Constitution of the Philippines (General)',
+      url: 'https://lawphil.net/consti/cons1987.html'
+    };
+  }
+  
+  // City Ordinance entries
+  if (entryType === 'city_ordinance_section') {
+    return {
+      citation: 'Local Government Code of 1991 (Republic Act 7160)',
+      url: 'https://lawphil.net/statutes/repacts/ra1991/ra_7160_1991.html'
+    };
+  }
+  
+  // Rule of Court entries
+  if (entryType === 'rule_of_court') {
+    // Check if already in judicial/constitutional context
+    if (cit.includes('article viii') || cit.includes('article 8') || 
+        ttl.includes('article viii') || ttl.includes('article 8')) {
+      return {
+        citation: 'Rules of Court (General)',
+        url: 'https://lawphil.net/courts/rules/rules.html'
+      };
+    }
+    return {
+      citation: '1987 Constitution, Article VIII - Judicial Department',
+      url: 'https://lawphil.net/consti/cons1987.html'
+    };
+  }
+  
+  // Agency Circular entries
+  if (entryType === 'agency_circular') {
+    // Try to find enabling statute from metadata or use Administrative Code
+    const agencyName = metadata?.agency || '';
+    if (agencyName) {
+      return {
+        citation: `Administrative Code of 1987 (Executive Order 292) - ${agencyName}`,
+        url: 'https://lawphil.net/executive/execord/eo1987/eo_292_1987.html'
+      };
+    }
+    return {
+      citation: 'Administrative Code of 1987 (Executive Order 292)',
+      url: 'https://lawphil.net/executive/execord/eo1987/eo_292_1987.html'
+    };
+  }
+  
+  // Default fallback for unknown types
+  return {
+    citation: '1987 Constitution of the Philippines (General)',
+    url: 'https://lawphil.net/consti/cons1987.html'
+  };
+}
+
+export async function enrichEntryWithGPT(entryData, options = {}) {
   if (!openai) {
     throw new Error('OpenAI API key not configured. Please set OPENAI_API_KEY environment variable.');
   }
@@ -36,8 +195,33 @@ export async function enrichEntryWithGPT(entryData) {
   // Get type-specific enrichment instructions
   const typeInstructions = getTypeSpecificInstructions(effectiveEntryType, effectiveEntrySubtype);
 
+  // Add extra reminder if this is entry #21, #41, #61, etc. (every 20 entries)
+  const entryIndex = options.entryIndex ?? -1;
+  const isReminderInterval = entryIndex >= 0 && (entryIndex + 1) % 20 === 0;
+  const intervalReminder = isReminderInterval 
+    ? `\n\n🚨 CRITICAL REMINDER - ENTRY #${entryIndex + 1} (Every 20 entries checkpoint):\n` +
+      `You are processing entry #${entryIndex + 1} in this batch. This is a CHECKPOINT to ensure you are following ALL enrichment rules.\n` +
+      `PLEASE REVIEW AND STRICTLY FOLLOW:\n` +
+      `1. TITLE FORMAT: Constitution = "Article X Section Y - [Description]" (X=ROMAN, Y=ARABIC). Statutes = "[Act Type] [Number], Section [Y] - [Description]"\n` +
+      `2. NO DUPLICATES in any array fields (tags, rights_callouts, advice_points, jurisprudence, related_laws)\n` +
+      `3. REQUIRED ARRAYS (must have at least one item):\n` +
+      `   - tags: Minimum 3, provide as many as applicable (NO maximum)\n` +
+      `   - rights_callouts: Minimum 1, provide AS MANY AS POSSIBLE (be thorough, list ALL applicable rights)\n` +
+      `   - advice_points: Minimum 1, provide AS MANY AS POSSIBLE (be thorough, list ALL applicable guidance)\n` +
+      `   - jurisprudence: Minimum 1, target 3+ when applicable (provide ALL applicable citations with case names/G.R. numbers)\n` +
+      `   - related_laws: Minimum 1, target 3 (max 3), format "Citation\\nURL" with REAL working LawPhil URLs\n` +
+      `4. STATUTE-SPECIFIC FIELDS (elements, penalties, defenses):\n` +
+      `   - Provide ONLY if they exist in the text - do NOT fabricate content\n` +
+      `   - For penal sections: Extract ALL applicable elements, penalties, defenses if present\n` +
+      `   - For non-penal sections: Leave empty [] or null (no penal clause present)\n` +
+      `   - If content doesn't exist, leave empty [] or null - accuracy over completeness\n` +
+      `5. Citations MUST be SPECIFIC (case names, G.R. numbers, dates, article/section references) - NO generic placeholders\n` +
+      `6. Use null (not "NA") for non-applicable string fields\n` +
+      `\nDO NOT SKIP OR ABBREVIATE ANY OF THESE REQUIREMENTS. BE THOROUGH AND COMPREHENSIVE. ONLY EXTRACT WHAT EXISTS - DO NOT FABRICATE.\n\n`
+    : '';
+
   // Construct the comprehensive prompt for GPT
-  const prompt = `${ENRICHMENT_GUIDELINES}${getEnrichmentReminder()}You are a legal expert specializing in Philippine law. Your task is to analyze a legal document entry and provide comprehensive enriched metadata in JSON format.
+  const prompt = `${ENRICHMENT_GUIDELINES}${getEnrichmentReminder()}${intervalReminder}You are a legal expert specializing in Philippine law. Your task is to analyze a legal document entry and provide comprehensive enriched metadata in JSON format.
 
 ENTRY DETAILS:
 - Title: ${title}
@@ -50,22 +234,24 @@ ${typeInstructions}
 
 Please provide a JSON response with the following comprehensive fields:
 {
-  "title": "For constitution entries: Format EXACTLY as 'Article X Section Y - [Description]' where X is ROMAN NUMERAL and Y is ARABIC NUMERAL (e.g., 'Article II Section 3 - Declaration of Principles and State Policies'). If no section, use 'Article X - [Description]' where X is ROMAN NUMERAL. For statutes: 'Act 3817, Section 1 - Property Relief'",
+  "title": "For constitution entries: Format EXACTLY as 'Article X Section Y - [Description]' where X is ROMAN NUMERAL and Y is ARABIC NUMERAL (e.g., 'Article II Section 3 - Declaration of Principles and State Policies'). If no section, use 'Article X - [Description]' where X is ROMAN NUMERAL. For statutes: 'Act 3817, Section 1 - Property Relief' (for 1930 Acts: if no clear section description, use act short title or first sentence summary)",
   "summary": "A concise 2-3 sentence summary of this legal provision",
   "topics": ["array", "of", "relevant", "legal", "topics"],
-  "tags": ["array", "of", "specific", "tags"],
+  "tags": ["array", "of", "specific", "tags", "MINIMUM 3 TAGS REQUIRED"],
   "jurisdiction": "Philippines",
-  "law_family": "constitution|statute|rule_of_court|executive_issuance|judicial_issuance|agency_issuance|lgu_ordinance",
-  "effective_date": "YYYY-MM-DD format date when this provision became effective",
+  "law_family": "constitution|statute|rule_of_court|executive_issuance|judicial_issuance|agency_issuance|lgu_ordinance (for 1930 Acts: set 'Revised Penal Code' ONLY for Act No. 3815; others use domain-specific or null)",
+  "effective_date": "YYYY-MM-DD format date when this provision became effective (for 1930 Acts: prefer 'Effective, [date]' pattern, fallback to 'Approved, [date]' pattern; normalize month abbreviations like 'Sept.' → 'September')",
   "amendment_date": "YYYY-MM-DD format date if this provision was amended, otherwise null",
   
   "applicability": "Who this provision applies to",
-  "penalties": "Any penalties or consequences mentioned",
-  "defenses": "Any defenses or exceptions mentioned",
-  "time_limits": "Any time limits or deadlines mentioned",
-  "required_forms": "Any forms or procedures required",
+  "penalties": "Any penalties or consequences mentioned (REQUIRED for penal sections, null/empty for non-penal sections like appropriations/franchises). For statute sections: provide as array of strings",
+  "defenses": "Any defenses or exceptions mentioned (REQUIRED for penal sections, null/empty for non-penal sections). For statute sections: provide as array of strings",
+  "time_limits": "Any time limits or deadlines mentioned (extract if 'within', 'not later than', 'period of' appear; else 'As provided by law' or null)",
+  "required_forms": "Any forms or procedures required (search for 'form', 'application', 'permit'; else 'As required by implementing rules' or null)",
   "related_laws": ["array", "of", "related", "law", "references"],
-  "elements": "Key elements or components of this provision",
+  "elements": "Key elements or components of this provision (REQUIRED for penal sections, null/empty for non-penal sections). For statute sections: provide as array of strings",
+  "prescriptive_period": "Prescriptive period for statute sections (object with 'value' as number or 'NA', and optional 'unit' as 'days'|'months'|'years'|'NA'). Extract if time limits mentioned; else null",
+  "standard_of_proof": "Standard of proof required (e.g., 'beyond reasonable doubt', 'preponderance of evidence'). Extract if mentioned; else null",
   "triggers": "What triggers this provision or when it applies",
   "violation_code": "Any violation codes or classifications",
   "violation_name": "Name of violations under this provision",
@@ -79,7 +265,7 @@ Please provide a JSON response with the following comprehensive fields:
   "rights_callouts": ["array", "of", "constitutional", "rights", "mentioned"],
   "rights_scope": "Scope of rights or protections",
   "advice_points": ["array", "of", "practical", "constitutional", "guidance"],
-  "jurisprudence": ["exactly 3 strings, each a citation only (no URL)"],
+  "jurisprudence": ["exactly 3 strings, each a citation only (no URL); tolerate both 'v.' and 'vs.'; capture optional parenthetical years"],
   
 }
 
@@ -89,20 +275,34 @@ IMPORTANT (STRICT):
 - Do NOT abbreviate: write "Article 1", "Section 3" (never ART1, Sec. 3)
 - For constitution entries: ALWAYS provide arrays for tags, rights_callouts, advice_points, jurisprudence, related_laws
 - ALL MULTI-ITEM FIELDS MUST contain AT LEAST ONE item (never empty []):
-  - tags: AT LEAST ONE tag required (provide as many as applicable, no maximum)
+  - tags: AT LEAST 3 TAGS REQUIRED (minimum 3, provide as many as applicable, no maximum)
   - rights_callouts: AT LEAST ONE item required (provide AS MANY AS POSSIBLE - be thorough, list all applicable constitutional rights mentioned)
   - advice_points: AT LEAST ONE item required (provide AS MANY AS POSSIBLE - be thorough, list all applicable practical guidance)
-  - jurisprudence: AT LEAST ONE citation required (if applicable, provide 3+ as target/minimum but CAN GO BEYOND 3 - provide ALL applicable SPECIFIC citations with case names/numbers; if not applicable, provide 1 general citation)
+  - jurisprudence: 
+    * For pre-1935 Acts (1930s and earlier): OPTIONAL (target ≥1 when available, do NOT force 3+; may return empty [] if none available)
+    * For post-1935 Acts: AT LEAST ONE citation required (if applicable, provide 3+ as target/minimum but CAN GO BEYOND 3 - provide ALL applicable SPECIFIC citations with case names/numbers; if not applicable, provide 1 general citation)
   
   - related_laws: Provide 1–3 non-self related laws (minimum 1, maximum 3). Do NOT cite the entry itself. If truly none apply, return an empty array [] (do not fabricate).
-  - For statutes: elements, penalties, defenses MUST contain AT LEAST ONE item each (provide as many as applicable)
-- IMPORTANT: Provide as many items as applicable/possible. Only provide ONE item if the field truly has no specific entries - then use a general/principle-based/connected item. Never return empty []
+  - For statutes: elements, penalties, defenses should be provided ONLY if they exist in the text:
+    * Penal sections: Provide elements, penalties, defenses if they exist in the text (keywords: punishable, penalty, fine, imprisonment, prohibited, shall suffer, offense, violation, liable, guilty, convicted, shall be punished, Article [number] for RPC). If none exist, leave empty [] or null
+    * Non-penal sections (appropriations, franchises, reliefs, administrative): Should be empty [] or null (no penal clause present)
+- IMPORTANT: Only extract what actually exists in the text. Do not fabricate content. If a field has no applicable content, leave empty [] or null.
 - CRITICAL: Citations must be SPECIFIC (include case names, G.R. numbers, dates, specific article/section references) - avoid generic placeholders
 - For Relations field (related_laws): Provide 1–3 non-self items. Format: "Citation\\nURL" (Citation on first line, REAL WORKING LawPhil URL on second line). NEVER cite the same entry.
-  * URLs MUST be actual, accessible LawPhil URLs (e.g., "https://lawphil.net/consti/cons1987.html")
+  * CRITICAL: Actively identify specific, thematically related laws or constitutional articles/sections
+  * Do NOT rely on generic defaults - identify specific related statutes, acts, or constitutional provisions
+  * Citations MUST be SPECIFIC: Include full act names, article/section numbers
+  * Example: "1987 Constitution, Article III Section 1 - Bill of Rights" or "Republic Act 386, Article 123"
+  * NOT: "Constitutional provisions" or "Related laws" or "Applicable laws"
+  * URLs MUST be actual, accessible LawPhil URLs:
+    - Constitution: https://lawphil.net/consti/cons1987.html
+    - Republic Acts: https://lawphil.net/statutes/repacts/ra[NUMBER]/ra[NUMBER].html
+    - Commonwealth Acts: https://lawphil.net/statutes/comacts/ca[NUMBER]/ca[NUMBER].html
+    - 1930 Acts: https://lawphil.net/statutes/acts/act1930/act_[NUMBER]_1930.html or act[NUMBER]_1930.html (check both underscore formats: act_[NUMBER]_[YEAR].html and act[NUMBER]_[YEAR].html)
+    - Other Acts: Use appropriate year folder (e.g., act1931, act1932, etc.)
   * NEVER use placeholders like "LawPhil URL" or "localhost" - only real, working URLs
-  * Verify URL format: Constitution → /consti/cons1987.html, RA → /statutes/repacts/ra[NUMBER]/ra[NUMBER].html
   * IMPORTANT: "3+" means minimum/target of 3 - provide ALL applicable items, not limited to just 3
+  * For statutes: If truly none apply after careful analysis, system will provide Constitution as fallback
 - If a field does not apply for string fields, put null (not "NA"); arrays MUST NEVER be empty []
 - Use appropriate law_family based on entry_type
 - Provide REAL, verifiable citations only; include a working URL (prefer LawPhil) for each citation in related_laws when possible
@@ -233,9 +433,21 @@ IMPORTANT (STRICT):
       topics: sanitizeArray(enrichedData.topics),
       tags: (() => {
         const arr = sanitizeConstitutionArray(enrichedData.tags);
-        // Ensure at least one tag - if empty, add a general tag based on entry type
+        // Ensure at least 3 tags - if less than 3, add generic tags based on entry type
         if (arr.length === 0) {
-          return effectiveEntryType === 'constitution_provision' ? ['Constitutional Provision'] : ['Legal Provision'];
+          return effectiveEntryType === 'constitution_provision' 
+            ? ['Constitutional Provision', 'Philippine Law', 'Legal Framework']
+            : ['Legal Provision', 'Philippine Law', 'Statute'];
+        }
+        // If less than 3 tags, pad with generic tags
+        while (arr.length < 3) {
+          if (effectiveEntryType === 'constitution_provision') {
+            arr.push('Constitutional Law');
+          } else if (effectiveEntryType === 'statute_section') {
+            arr.push('Statute');
+          } else {
+            arr.push('Philippine Law');
+          }
         }
         return arr;
       })(),
@@ -246,25 +458,42 @@ IMPORTANT (STRICT):
       
       applicability: sanitizeMaybeString(enrichedData.applicability),
       penalties: (() => {
-        // For statutes, ensure penalties is never null/empty
+        // For statutes, penalties should be an array of strings
         if (effectiveEntryType === 'statute_section' || effectiveEntryType === 'city_ordinance_section') {
+          // Handle both string and array formats
+          if (Array.isArray(enrichedData.penalties)) {
+            return sanitizeArray(enrichedData.penalties);
+          }
+          // If string, convert to array (split by newlines or commas)
           const pen = sanitizeMaybeString(enrichedData.penalties);
-          return pen || 'As provided by law';
+          if (pen && pen !== '') {
+            return pen.split(/\n|,|;/).map(s => s.trim()).filter(s => s.length > 0);
+          }
+          // Allow null/empty for non-penal sections (appropriations, franchises, etc.)
+          return null;
         }
         return sanitizeMaybeString(enrichedData.penalties);
       })(),
       defenses: (() => {
-        // For statutes, ensure defenses is never null/empty
+        // For statutes, defenses should be an array of strings
         if (effectiveEntryType === 'statute_section' || effectiveEntryType === 'city_ordinance_section') {
+          // Handle both string and array formats
+          if (Array.isArray(enrichedData.defenses)) {
+            return sanitizeArray(enrichedData.defenses);
+          }
+          // If string, convert to array (split by newlines or commas)
           const def = sanitizeMaybeString(enrichedData.defenses);
-          return def || 'As provided by law and applicable legal defenses';
+          if (def && def !== '') {
+            return def.split(/\n|,|;/).map(s => s.trim()).filter(s => s.length > 0);
+          }
+          // Allow null/empty for non-penal sections
+          return null;
         }
         return sanitizeMaybeString(enrichedData.defenses);
       })(),
       time_limits: sanitizeMaybeString(enrichedData.time_limits),
       required_forms: sanitizeMaybeString(enrichedData.required_forms),
       related_laws: (() => {
-        // Do NOT auto-fallback. Require GPT to provide at least one when applicable.
         // Back-compat: accept related_sections if model still returns old key
         const raw = Array.isArray(enrichedData.related_laws)
           ? enrichedData.related_laws
@@ -281,34 +510,48 @@ IMPORTANT (STRICT):
           return !Array.from(selfSignals).some(sig => sig && s.includes(sig));
         };
         let filtered = items.filter(notSelf);
-        // Heuristic fallback: if empty, synthesize 1 non-self related law
+        
+        // Use type/subtype-specific fallback if empty
         if (filtered.length === 0) {
-          // Try to infer from canonical citation or title
-          const cit = String(entryData?.canonical_citation || '').toLowerCase();
-          const ttl = String(entryData?.title || '').toLowerCase();
-          let citation = '';
-          let url = 'https://lawphil.net';
-          if (cit.includes('article') || ttl.includes('article')) {
-            // Default to Bill of Rights as a generally related law
-            citation = '1987 Constitution, Article III - Bill of Rights';
-            url = 'https://lawphil.net/consti/cons1987.html';
-          } else {
-            // Generic constitution root as last resort
-            citation = '1987 Constitution of the Philippines (General)';
-            url = 'https://lawphil.net/consti/cons1987.html';
-          }
-          filtered = [`${citation}\n${url}`];
+          const fallback = getRelatedLawsFallback(effectiveEntryType, effectiveEntrySubtype, entryData);
+          filtered = [`${fallback.citation}\n${fallback.url}`];
         }
         // Enforce maximum of 3 items
         return filtered.slice(0, 3);
       })(),
       elements: (() => {
-        // For statutes, ensure elements is never null/empty
+        // For statutes, elements should be an array of strings
         if (effectiveEntryType === 'statute_section' || effectiveEntryType === 'city_ordinance_section') {
+          // Handle both string and array formats
+          if (Array.isArray(enrichedData.elements)) {
+            return sanitizeArray(enrichedData.elements);
+          }
+          // If string, convert to array (split by newlines or commas)
           const elem = sanitizeMaybeString(enrichedData.elements);
-          return elem || 'As provided by law and applicable legal principles';
+          if (elem && elem !== '') {
+            return elem.split(/\n|,|;/).map(s => s.trim()).filter(s => s.length > 0);
+          }
+          // Allow null/empty for non-penal sections (appropriations, franchises, etc.)
+          return null;
         }
         return sanitizeMaybeString(enrichedData.elements);
+      })(),
+      prescriptive_period: (() => {
+        // For statute sections, prescriptive_period should be an object or null
+        if (effectiveEntryType === 'statute_section') {
+          if (enrichedData.prescriptive_period && typeof enrichedData.prescriptive_period === 'object') {
+            return enrichedData.prescriptive_period;
+          }
+          return null;
+        }
+        return null;
+      })(),
+      standard_of_proof: (() => {
+        // For statute sections, standard_of_proof should be a string or null
+        if (effectiveEntryType === 'statute_section') {
+          return sanitizeMaybeString(enrichedData.standard_of_proof);
+        }
+        return null;
       })(),
       triggers: sanitizeMaybeString(enrichedData.triggers),
       violation_code: sanitizeMaybeString(enrichedData.violation_code),
@@ -384,9 +627,12 @@ REPUBLIC ACT ANALYSIS:
 - Look for penalties, enforcement mechanisms, and compliance requirements
 - Note any deadlines, time limits, or procedural steps
 - Identify any exemptions, defenses, or special circumstances
-- ALWAYS provide elements array for criminal/prohibited acts
-- ALWAYS provide penalties array for violations
-- ALWAYS provide defenses array for legal defenses
+- Provide elements array if they exist in the text (extract ALL applicable elements, be thorough). If none exist, leave empty [] or null
+- Provide penalties array if they exist in the text (extract ALL applicable penalties, be thorough). If none exist, leave empty [] or null
+- Provide defenses array if they exist in the text (extract ALL applicable defenses, be thorough). If none exist, leave empty [] or null
+- Tags: MUST contain AT LEAST 3 tags (minimum 3, provide as many as applicable, no maximum)
+- Related laws: MUST provide at least ONE non-self item (target 3; max 3). Actively identify specific, thematically related laws or constitutional articles/sections. Do NOT rely on generic defaults. Citations MUST be SPECIFIC with full act names, article/section numbers and REAL working LawPhil URLs. If truly none apply after careful analysis, system will provide Constitution as fallback.
+- CRITICAL: Only extract what actually exists in the text - do not fabricate content. Be thorough when content exists, but leave empty if not present.
 - Focus on practical enforcement and compliance aspects`,
 
       'commonwealth_act': `
@@ -397,9 +643,11 @@ COMMONWEALTH ACT ANALYSIS:
 - Look for penalties, enforcement mechanisms, and compliance requirements
 - Note any deadlines, time limits, or procedural steps
 - Identify any exemptions, defenses, or special circumstances
-- ALWAYS provide elements array for criminal/prohibited acts
-- ALWAYS provide penalties array for violations
-- ALWAYS provide defenses array for legal defenses
+- Provide elements array if they exist in the text (extract ALL applicable elements, be thorough). If none exist, leave empty [] or null
+- Provide penalties array if they exist in the text (extract ALL applicable penalties, be thorough). If none exist, leave empty [] or null
+- Provide defenses array if they exist in the text (extract ALL applicable defenses, be thorough). If none exist, leave empty [] or null
+- Tags: MUST contain AT LEAST 3 tags (minimum 3, provide as many as applicable, no maximum)
+- CRITICAL: Only extract what actually exists in the text - do not fabricate content. Be thorough when content exists, but leave empty if not present.
 - Consider historical context and current applicability`,
 
       'mga_batas_pambansa': `
@@ -410,22 +658,55 @@ MGA BATAS PAMBANSA ANALYSIS:
 - Look for penalties, enforcement mechanisms, and compliance requirements
 - Note any deadlines, time limits, or procedural steps
 - Identify any exemptions, defenses, or special circumstances
-- ALWAYS provide elements array for criminal/prohibited acts
-- ALWAYS provide penalties array for violations
-- ALWAYS provide defenses array for legal defenses
+- Provide elements array if they exist in the text (extract ALL applicable elements, be thorough). If none exist, leave empty [] or null
+- Provide penalties array if they exist in the text (extract ALL applicable penalties, be thorough). If none exist, leave empty [] or null
+- Provide defenses array if they exist in the text (extract ALL applicable defenses, be thorough). If none exist, leave empty [] or null
+- Tags: MUST contain AT LEAST 3 tags (minimum 3, provide as many as applicable, no maximum)
+- CRITICAL: Only extract what actually exists in the text - do not fabricate content. Be thorough when content exists, but leave empty if not present.
 - Consider historical context and current applicability`,
 
       'act': `
-GENERAL ACT ANALYSIS:
-- This is a general Act - a law passed by the legislature
-- Focus on specific legal requirements, procedures, and obligations
-- Identify who is subject to the law and what actions are required/prohibited
-- Look for penalties, enforcement mechanisms, and compliance requirements
-- Note any deadlines, time limits, or procedural steps
-- Identify any exemptions, defenses, or special circumstances
-- ALWAYS provide elements array for criminal/prohibited acts
-- ALWAYS provide penalties array for violations
-- ALWAYS provide defenses array for legal defenses
+GENERAL ACT ANALYSIS (1930 Acts and earlier):
+- This is a general Act - a law passed by the legislature (pre-Commonwealth period)
+- CRITICAL: Determine if this is a PENAL section or NON-PENAL section:
+  * PENAL sections (provide elements, penalties, defenses if they exist):
+    - Contains prohibitory verbs: "punishable", "penalty", "fine", "imprisonment", "prohibited", "shall suffer", "offense", "violation", "liable", "guilty", "convicted", "shall be punished"
+    - Is within Revised Penal Code (Act No. 3815) - check for "Article [number]" references
+    - Defines criminal acts or violations
+    - Provide elements array if they exist in the text (extract ALL applicable elements, be thorough). If none exist, leave empty [] or null
+    - Provide penalties array if they exist in the text (extract ALL applicable penalties, be thorough). If none exist, leave empty [] or null
+    - Provide defenses array if they exist in the text (extract ALL applicable defenses, be thorough). If none exist, leave empty [] or null
+  * NON-PENAL sections (elements/penalties/defenses should be empty):
+    - Appropriations, franchises, reliefs, street renamings, codifications
+    - Administrative acts, civil service provisions, organizational acts
+    - Type inference keywords for categorization:
+      * Appropriations: "Appropriating", "Public Works", "appropriation", "budget"
+      * Franchise: "Franchise", "granted to", "franchisee", "concession"
+      * Relief/Administrative: "Relieving", "changing name", "relief", "administrative"
+      * Codification: "Amending", "codifying", "codification", "revision"
+    - If no penal clause present, set elements/penalties/defenses to empty [] or null
+    - Add type_notes: "no penal clause present" if applicable
+- Effective date extraction:
+  * Prefer "Effective, [date]" pattern if present
+  * Fallback to "Approved, [date]" pattern if "Effective" not found
+  * Convert to YYYY-MM-DD format
+  * Normalize ambiguous month abbreviations: "Sept." → "September", "Dec." → "December", "Jan." → "January", "Feb." → "February", "Mar." → "March", "Apr." → "April", "Jun." → "June", "Jul." → "July", "Aug." → "August", "Oct." → "October", "Nov." → "November"
+  * Regex should capture both "Effective," and "Approved," patterns (case-insensitive)
+- Title format: "Act [Number], Section [Y] - [Description]"
+  * If no clear section description, use act short title or first sentence summary
+- Law family assignment:
+  * Set law_family = "Revised Penal Code" ONLY for Act No. 3815
+  * For other acts: Use domain-specific law_family (e.g., "Appropriations", "Franchise") or null
+- Jurisprudence: OPTIONAL for pre-1935 acts (target ≥1 when available, do NOT force 3+)
+- Related laws: MUST provide at least ONE non-self item (target 3; max 3). Actively identify specific, thematically related laws or constitutional articles/sections. Do NOT rely on generic defaults. Citations MUST be SPECIFIC with full act names, article/section numbers and REAL working LawPhil URLs. Accept both Commonwealth Act URLs and Act URLs:
+  * CA: https://lawphil.net/statutes/comacts/ca[number]/ca[number].html
+  * Act: https://lawphil.net/statutes/acts/act[year]/act_[number]_[year].html or act[number]_[year].html (check both underscore formats)
+  * For Revised Penal Code (Act 3815): Prefer Constitution Article III (Bill of Rights) as related law
+  * For other Acts: Prefer Constitution or related statutes in the same domain
+  * If truly none apply after careful analysis, system will provide Constitution as fallback
+- Tags: MUST contain AT LEAST 3 tags (minimum 3, provide as many as applicable, no maximum)
+- Jurisprudence case pattern: Tolerate both "v." and "vs."; capture optional parenthetical years (e.g., "Tañada v. Angara" or "Tañada vs. Angara (1997)")
+- CRITICAL: Only extract what actually exists in the text - do not fabricate content. Be thorough when content exists (extract ALL applicable elements, penalties, and defenses), but leave empty [] or null if not present.
 - Focus on practical enforcement and compliance aspects`
     };
     

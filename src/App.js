@@ -32,6 +32,7 @@ import { useProcessPolling } from './hooks/useProcessPolling';
 import { Plus, Upload, Download, MessageCircle, FileDown, Trash2 } from 'lucide-react';
 import './components/ProcessStatus/ProcessStatus.css';
 import './components/Toast/Toast.css';
+import { LoadingOverlay } from './components/LoadingOverlay/LoadingOverlay';
 // Authentication removed - no login required, but EntryView still needs AuthProvider
 const API = process.env.REACT_APP_API_BASE || 'http://localhost:4000';
 
@@ -42,6 +43,8 @@ function HeaderNotificationsButton() {
       localStorage.removeItem('law_entries');
       sessionStorage.clear();
     } catch {}
+    // Notify that refresh is starting (to show loading overlay)
+    try { window.dispatchEvent(new Event('refresh-started')); } catch {}
     // Notify listeners to refresh from DB immediately
     try { window.dispatchEvent(new Event('force-refresh-entries')); } catch {}
   };
@@ -120,6 +123,7 @@ function AppContent({ currentView: initialView = 'list', isEditing = false, form
   const [currentView] = useState(initialView);
   const [selectedEntryId, setSelectedEntryId] = useState(initialEntryId);
   const [editingEntry, setEditingEntry] = useState(null);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   
   // Track which entries are currently being saved to prevent duplicates
   const savingEntries = useRef(new Set());
@@ -276,6 +280,24 @@ function AppContent({ currentView: initialView = 'list', isEditing = false, form
     return () => {
       window.removeEventListener('refresh-entries', forceRerender);
       window.removeEventListener('refresh-progress', forceRerender);
+    };
+  }, []);
+
+  // Handle refresh loading overlay
+  useEffect(() => {
+    const handleRefreshStart = () => {
+      setIsRefreshing(true);
+    };
+    const handleRefreshComplete = () => {
+      setIsRefreshing(false);
+    };
+    
+    window.addEventListener('refresh-started', handleRefreshStart);
+    window.addEventListener('entries-refreshed', handleRefreshComplete);
+    
+    return () => {
+      window.removeEventListener('refresh-started', handleRefreshStart);
+      window.removeEventListener('entries-refreshed', handleRefreshComplete);
     };
   }, []);
 
@@ -1585,6 +1607,9 @@ function AppContent({ currentView: initialView = 'list', isEditing = false, form
 
       {/* Chat Modal (RAG) */}
       <ChatModal isOpen={showChat} onClose={() => setShowChat(false)} />
+      
+      {/* Loading Overlay for DB Refresh */}
+      <LoadingOverlay isVisible={isRefreshing} />
     </div>
   );
 }

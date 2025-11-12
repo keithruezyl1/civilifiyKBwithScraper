@@ -64,6 +64,51 @@ function generateEntryId(metadata, category) {
 }
 
 /**
+ * Generate historical_context based on act metadata
+ * Uses predefined values to avoid GPT credits
+ */
+function generateHistoricalContext(metadata, entrySubtype, canonicalCitation) {
+  // For post-1946 Acts: no historical context needed
+  if (!entrySubtype || entrySubtype === 'republic_act' || entrySubtype === 'mga_batas_pambansa') {
+    return null;
+  }
+  
+  // Extract year from metadata or canonical citation
+  const year = metadata?.year || null;
+  const actNumber = metadata?.actNumber || null;
+  const url = metadata?.canonicalUrl || '';
+  
+  // Check canonical citation for act type
+  const cit = String(canonicalCitation || '').toLowerCase();
+  
+  // Commonwealth Acts (1935-1946)
+  if (entrySubtype === 'commonwealth_act' || cit.includes('commonwealth act') || cit.includes('ca ')) {
+    return 'Commonwealth period law; check current applicability';
+  }
+  
+  // 1930 Acts (pre-Commonwealth)
+  if (entrySubtype === 'act' || cit.includes('act no.') || url.includes('/act193') || url.includes('/acts/act')) {
+    // Check if it's specifically Act No. 3815 (Revised Penal Code)
+    if (actNumber === '3815' || actNumber === 3815 || cit.includes('act no. 3815') || cit.includes('act 3815')) {
+      return 'Pre-Commonwealth statute (Revised Penal Code); verify current applicability and amendments';
+    }
+    
+    // Check year range for 1930 Acts
+    if (year && parseInt(year) >= 1930 && parseInt(year) < 1935) {
+      return 'Pre-Commonwealth statute; may be repealed or superseded';
+    }
+    
+    // Default for any Act (pre-1946)
+    if (!year || parseInt(year) < 1946) {
+      return 'Pre-Commonwealth statute; may be repealed or superseded';
+    }
+  }
+  
+  // Default: no historical context for modern laws
+  return null;
+}
+
+/**
  * Generate canonical citation from metadata
  */
 function generateCanonicalCitation(metadata, category) {
@@ -1025,6 +1070,34 @@ router.post('/session/:sessionId/generate-entries', async (req, res) => {
           sanitized = sanitized.replace(/^Chan Robles.*$/gmi, '');
           sanitized = sanitized.replace(/©.*?\d{4}.*?Lawphil.*$/gmi, '');
           
+          // Remove cross-references and citations from other entries
+          // Remove lines that look like citations from other entries (but preserve section headers at start)
+          const lines = sanitized.split('\n');
+          const cleanedLines = lines.map((line, idx) => {
+            const trimmed = line.trim();
+            // Keep section headers at the start
+            if (idx === 0 && /^(Section|Article)\s+\d+/i.test(trimmed)) {
+              return line;
+            }
+            // Remove citations from other entries (e.g., "Article X Section Y" appearing mid-text)
+            if (/^(Article\s+\d+|Act\s+No\.\s+\d+).*Section\s+\d+/i.test(trimmed) && 
+                !trimmed.startsWith('Section') && 
+                !trimmed.startsWith('Article')) {
+              return ''; // Remove this line
+            }
+            // Remove "The Project -" artifacts
+            if (/^The Project\s*-?\s*$/i.test(trimmed)) {
+              return '';
+            }
+            // Remove lines that are just URLs or citations
+            if (/^(https?:\/\/|civilify\.local|www\.)/i.test(trimmed)) {
+              return '';
+            }
+            return line;
+          }).filter(line => line.trim() !== '');
+          
+          sanitized = cleanedLines.join('\n');
+          
           // Final trim
           sanitized = sanitized.trim();
           
@@ -1100,9 +1173,22 @@ router.post('/session/:sessionId/generate-entries', async (req, res) => {
         if (gptAvailable) {
           try {
             console.log(`🤖 Enriching entry with GPT: ${entryId}`);
-            enrichedData = await enrichEntryWithGPT(entryData);
+            enrichedData = await enrichEntryWithGPT(entryData, { entryIndex: docIndex });
             // Override law_family with URL-based determination
           enrichedData.law_family = lawFamily;
+          
+          // Auto-assign historical_context based on metadata (no GPT credits needed)
+          enrichedData.historical_context = generateHistoricalContext(metadata, finalEntrySubtype, canonicalCitation);
+          
+          // Add prescriptive_period and standard_of_proof to subtypeFields for statute sections
+          if (entryType === 'statute_section') {
+            if (enrichedData.prescriptive_period) {
+              subtypeFields.prescriptive_period = enrichedData.prescriptive_period;
+            }
+            if (enrichedData.standard_of_proof) {
+              subtypeFields.standard_of_proof = enrichedData.standard_of_proof;
+            }
+          }
             
             // Ensure required fields are set for constitution entries
             if (session.category === 'constitution_1987') {
@@ -1143,10 +1229,14 @@ router.post('/session/:sessionId/generate-entries', async (req, res) => {
               legal_bases: []
             };
           } else {
+            // Auto-assign historical_context even when GPT is not available
+            const historicalContext = generateHistoricalContext(metadata, finalEntrySubtype, canonicalCitation);
+            
             enrichedData = {
               topics: metadata.topics || [],
               tags: metadata.tags || [],
               jurisdiction: 'Philippines',
+              historical_context: historicalContext,
               law_family: lawFamily,
               applicability: null,
               penalties: null,
@@ -1216,10 +1306,58 @@ router.post('/session/:sessionId/generate-entries', async (req, res) => {
           enrichedData.title = normalizeConstitutionTitle(enrichedData.title, metadata);
         }
         
+        // Helper: Validate and sanitize date strings (convert invalid dates to null)
+        const validateDate = (dateString) => {
+          if (!dateString || typeof dateString !== 'string') return null;
+          
+          // Check for invalid patterns like "1930-XX-XX", "XXXX-XX-XX", etc.
+          if (/X/i.test(dateString) || dateString.includes('Unknown') || dateString.includes('TBD')) {
+            return null;
+          }
+          
+          // Try to parse as ISO date (YYYY-MM-DD)
+          const isoDateMatch = dateString.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+          if (isoDateMatch) {
+            const year = parseInt(isoDateMatch[1], 10);
+            const month = parseInt(isoDateMatch[2], 10);
+            const day = parseInt(isoDateMatch[3], 10);
+            
+            // Validate date components
+            if (year >= 1 && year <= 9999 && month >= 1 && month <= 12 && day >= 1 && day <= 31) {
+              // Try to create a Date object to validate (handles invalid dates like Feb 30)
+              const testDate = new Date(year, month - 1, day);
+              if (testDate.getFullYear() === year && testDate.getMonth() === month - 1 && testDate.getDate() === day) {
+                return dateString; // Valid ISO date
+              }
+            }
+          }
+          
+          // Try to parse as Date object and convert to ISO
+          try {
+            const parsed = new Date(dateString);
+            if (!isNaN(parsed.getTime())) {
+              const iso = parsed.toISOString().split('T')[0];
+              // Double-check the ISO string is valid
+              if (/^\d{4}-\d{2}-\d{2}$/.test(iso)) {
+                return iso;
+              }
+            }
+          } catch {}
+          
+          // If all else fails, return null
+          return null;
+        };
+        
         // Coalesce critical enrichment fields before persistence
         const persistedJurisdiction = enrichedData.jurisdiction || (session.category === 'constitution_1987' ? 'Philippines' : null);
         const persistedLawFamily = enrichedData.law_family || lawFamily;
-        const persistedEffectiveDate = enrichedData.effective_date || (session.category === 'constitution_1987' ? '1987-02-02' : null);
+        
+        // Validate effective_date - convert invalid dates to null
+        const rawEffectiveDate = enrichedData.effective_date || (session.category === 'constitution_1987' ? '1987-02-02' : null);
+        const persistedEffectiveDate = rawEffectiveDate ? validateDate(rawEffectiveDate) : (session.category === 'constitution_1987' ? '1987-02-02' : null);
+        
+        // Validate amendment_date - convert invalid dates to null
+        const persistedAmendmentDate = enrichedData.amendment_date ? validateDate(enrichedData.amendment_date) : null;
 
         // Generate vector embedding
         let embeddingLiteral = null;
@@ -1250,11 +1388,11 @@ router.post('/session/:sessionId/generate-entries', async (req, res) => {
             apprehension_flow, incident, phases, forms, handoff, rights_callouts,
             rights_scope, advice_points, jurisprudence, related_laws,
             section_id, status, source_urls, embedding, batch_release_id, published_at, 
-            provenance, created_by, effective_date, amendment_date, subtype_fields
+            provenance, created_by, effective_date, amendment_date, subtype_fields, historical_context
           ) VALUES (
             $1, $2, $3, $4, $5, $6, $7::text[], $8, $9, $10, $11, $12, $13, $14, $15, $16, 
             $17, $18, $19, $20, $21, $22, $23, $24, $25, $26::text[], $27, $28::text[], $29::text[], 
-            $30::text[], $31, $32, $33, $34, $35, $36, $37, $38, $39, $40, $41
+            $30::text[], $31, $32, $33, $34, $35, $36, $37, $38, $39, $40, $41, $42
           )
         `, [
           entryId, // 1
@@ -1267,11 +1405,12 @@ router.post('/session/:sessionId/generate-entries', async (req, res) => {
           persistedJurisdiction, // 8
           persistedLawFamily, // 9
           enrichedData.applicability, // 10 TEXT
-          enrichedData.penalties, // 11 TEXT
-          enrichedData.defenses, // 12 TEXT
+          // For statute sections: penalties, defenses, elements should be arrays (JSON.stringify if needed)
+          Array.isArray(enrichedData.penalties) ? JSON.stringify(enrichedData.penalties) : enrichedData.penalties, // 11 TEXT (JSON string for arrays)
+          Array.isArray(enrichedData.defenses) ? JSON.stringify(enrichedData.defenses) : enrichedData.defenses, // 12 TEXT (JSON string for arrays)
           enrichedData.time_limits, // 13 TEXT
           enrichedData.required_forms, // 14 TEXT
-          enrichedData.elements, // 15 TEXT
+          Array.isArray(enrichedData.elements) ? JSON.stringify(enrichedData.elements) : enrichedData.elements, // 15 TEXT (JSON string for arrays)
           enrichedData.triggers, // 16 TEXT
           enrichedData.violation_code, // 17
           enrichedData.violation_name, // 18
@@ -1314,8 +1453,9 @@ router.post('/session/:sessionId/generate-entries', async (req, res) => {
           }), // 37
           1, // 38 - Default user ID
           persistedEffectiveDate, // 39
-          enrichedData.amendment_date, // 40
-          JSON.stringify(subtypeFields) // 41 - subtype_fields
+          persistedAmendmentDate, // 40
+          JSON.stringify(subtypeFields), // 41 - subtype_fields
+          enrichedData.historical_context || null // 42 - historical_context
         ]);
         
         // Entry was successfully inserted (duplicate check passed above)

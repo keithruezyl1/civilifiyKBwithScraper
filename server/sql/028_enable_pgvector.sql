@@ -15,3 +15,4 @@ CREATE INDEX IF NOT EXISTS kb_entries_embedding_ivff
   ON kb_entries USING ivfflat (embedding vector_cosine_ops) WITH (lists = 100);
 
 
+

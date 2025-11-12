@@ -34,10 +34,11 @@ class ActsParser {
   }
 
   /**
-   * Check if URL is an individual Act page (e.g., act_3817_1930.html)
+   * Check if URL is an individual Act page (e.g., act_3817_1930.html or act3817_1930.html)
+   * Handles both underscore formats: act_[NUMBER]_[YEAR].html and act[NUMBER]_[YEAR].html
    */
   isIndividualActPage(url) {
-    return /\/act_\d+_\d{4}\.html$/.test(url);
+    return /\/act_?\d+_\d{4}\.html$/.test(url);
   }
 
   /**
@@ -98,14 +99,15 @@ class ActsParser {
    */
   extractActsFromLinks(document, canonicalUrl) {
     const acts = [];
-    const links = document.querySelectorAll('a[href*="act_"]');
+    // Handle both underscore formats: act_[NUMBER]_[YEAR] and act[NUMBER]_[YEAR]
+    const links = document.querySelectorAll('a[href*="act"]');
     
     links.forEach(link => {
       const href = link.getAttribute('href');
       const text = link.textContent.trim();
       
-      // Extract Act number from link text or href
-      const actMatch = text.match(/Act No\.\s*(\d+)/i) || href.match(/act_(\d+)_/);
+      // Extract Act number from link text or href (handle both formats)
+      const actMatch = text.match(/Act No\.\s*(\d+)/i) || href.match(/act_?(\d+)_/);
       if (actMatch) {
         const actNumber = actMatch[1];
         
@@ -127,9 +129,10 @@ class ActsParser {
         const titleMatch = nextText.match(/([A-Za-z]+\s+\d{1,2},?\s+\d{4})([^]*?)(?=Act No\.|$)/);
         const title = titleMatch ? titleMatch[2].trim() : 'Unknown title';
         
-        // Construct URL
+        // Construct URL (try both underscore formats: act_[NUMBER]_[YEAR].html and act[NUMBER]_[YEAR].html)
         const yearMatch = canonicalUrl.match(/\/act(\d{4})\//);
         const year = yearMatch ? yearMatch[1] : 'unknown';
+        // Try act_[NUMBER]_[YEAR].html format first (preferred)
         const url = canonicalUrl.replace(/\/[^\/]+\.html$/, `/act_${actNumber}_${year}.html`);
         
         acts.push({
@@ -163,9 +166,10 @@ class ActsParser {
       // Clean up the title - remove any trailing artifacts
       const cleanTitle = this.cleanTitle(title);
       
-      // Construct URL
+      // Construct URL (try both underscore formats: act_[NUMBER]_[YEAR].html and act[NUMBER]_[YEAR].html)
       const yearMatch = canonicalUrl.match(/\/act(\d{4})\//);
       const year = yearMatch ? yearMatch[1] : 'unknown';
+      // Try act_[NUMBER]_[YEAR].html format first (preferred)
       const url = canonicalUrl.replace(/\/[^\/]+\.html$/, `/act_${actNumber}_${year}.html`);
       
       acts.push({
@@ -238,25 +242,27 @@ class ActsParser {
    * Extract Act metadata from individual Act page
    */
   extractActMetadata(bodyText, canonicalUrl) {
-    // Extract Act number from URL
-    const actMatch = canonicalUrl.match(/act_(\d+)_/);
+    // Extract Act number from URL (handle both act_[NUMBER]_[YEAR] and act[NUMBER]_[YEAR] formats)
+    const actMatch = canonicalUrl.match(/act_?(\d+)_(\d{4})/);
     const actNumber = actMatch ? actMatch[1] : 'unknown';
     
     // Extract year from URL
-    const yearMatch = canonicalUrl.match(/act_(\d+)_(\d{4})/);
-    const year = yearMatch ? yearMatch[2] : 'unknown';
+    const year = actMatch ? actMatch[2] : 'unknown';
     
     // Extract title from text
     const titleMatch = bodyText.match(/AN ACT[^]*?(?=Be it enacted|$)/i);
     const title = titleMatch ? titleMatch[0].trim() : 'Unknown title';
     
-    // Extract approval date
-    const approvalMatch = bodyText.match(/([A-Za-z]+\s+\d{1,2},?\s+\d{4})/);
-    const approvalDate = approvalMatch ? approvalMatch[1] : 'Unknown date';
+    // Extract approval date (normalize month abbreviations)
+    const approvalMatch = bodyText.match(/([A-Za-z]+\.?\s+\d{1,2},?\s+\d{4})/);
+    let approvalDate = approvalMatch ? approvalMatch[1] : 'Unknown date';
+    approvalDate = this.normalizeMonthAbbreviation(approvalDate);
     
-    // Extract effective date
-    const effectiveMatch = bodyText.match(/Effective,?\s*([A-Za-z]+\s+\d{1,2},?\s+\d{4})/i);
-    const effectiveDate = effectiveMatch ? effectiveMatch[1] : approvalDate;
+    // Extract effective date (prefer "Effective," then fallback to "Approved,")
+    // Handle both patterns: "Effective, [date]" and "Approved, [date]"
+    const effectiveMatch = bodyText.match(/(?:Effective|Approved),?\s*([A-Za-z]+\.?\s+\d{1,2},?\s+\d{4})/i);
+    let effectiveDate = effectiveMatch ? effectiveMatch[1] : approvalDate;
+    effectiveDate = this.normalizeMonthAbbreviation(effectiveDate);
     
     return {
       actNumber,
@@ -370,31 +376,89 @@ class ActsParser {
    */
   processHierarchyContent(text, hierarchy) {
     const entries = [];
-    // Prepare boundaries for each heading to slice content until next true heading
-    const headingIndices = hierarchy
-      .filter(h => h.type === 'article' || h.type === 'section')
-      .map(h => h.index)
-      .sort((a,b) => a-b);
+    // Prepare boundaries for all hierarchy elements (chapters, articles, sections)
+    // This ensures we stop at chapter boundaries, not just next article/section
+    const allHeadingIndices = hierarchy
+      .filter(h => h.type === 'chapter' || h.type === 'article' || h.type === 'section')
+      .map(h => ({ type: h.type, index: h.index }))
+      .sort((a, b) => a.index - b.index);
     
     hierarchy.forEach(item => {
       // Process the content
-      // Compute content block from this heading start to next heading start
+      // Compute content block from this heading start to next heading start (any type)
       let block = '';
       if (item.type === 'article' || item.type === 'section') {
         const start = item.index;
-        const nextIdx = headingIndices.find(i => i > start) ?? text.length;
-        block = text.slice(start, nextIdx);
+        // Find the next heading of any type (chapter, article, or section)
+        const nextHeading = allHeadingIndices.find(h => h.index > start);
+        const nextIdx = nextHeading ? nextHeading.index : text.length;
+        
+        // Extract the block - stop BEFORE the next heading starts
+        // We need to find where the current article/section actually ends
+        // Look backwards from nextIdx to find the last meaningful content
+        
+        // First, get the raw slice
+        let rawBlock = text.slice(start, nextIdx);
+        
+        // Find the actual end of this article/section by looking for:
+        // 1. Chapter headings (CHAPTER X)
+        // 2. Next article/section headings (Article X or Section X)
+        // 3. End of meaningful content (blank lines followed by new heading)
+        
+        // Pattern to find chapter headings
+        const chapterPattern = /(^|\n)\s*CHAPTER\s+[A-Z][A-Z\s]*\s*(?=\n)/g;
+        let chapterMatch;
+        let lastChapterPos = -1;
+        while ((chapterMatch = chapterPattern.exec(rawBlock)) !== null) {
+          lastChapterPos = chapterMatch.index;
+        }
+        
+        // Pattern to find next article/section (but not the current one at start)
+        const nextHeadingPattern = new RegExp(`(^|\\n)\\s*(Article|Section)\\s+\\d+[A-Za-z]?\\b`, 'gi');
+        let headingMatch;
+        let nextHeadingPos = -1;
+        // Skip the first match (current article/section)
+        let firstMatch = true;
+        while ((headingMatch = nextHeadingPattern.exec(rawBlock)) !== null) {
+          if (firstMatch) {
+            firstMatch = false;
+            continue; // Skip the current article/section heading
+          }
+          // Check if this looks like a new heading (not part of current content)
+          const beforeMatch = rawBlock.slice(0, headingMatch.index).trim();
+          if (beforeMatch.length > 50) {
+            // Check context - if preceded by blank lines or chapter markers, it's a new heading
+            const context = rawBlock.slice(Math.max(0, headingMatch.index - 200), headingMatch.index);
+            const lastLines = context.split('\n').slice(-5).join('\n');
+            if (/^\s*$|CHAPTER\s+|TITLE\s+|BOOK\s+/m.test(lastLines)) {
+              nextHeadingPos = headingMatch.index;
+              break;
+            }
+          }
+        }
+        
+        // Determine the actual end position
+        let actualEnd = rawBlock.length;
+        if (lastChapterPos >= 0) {
+          actualEnd = Math.min(actualEnd, lastChapterPos);
+        }
+        if (nextHeadingPos >= 0) {
+          actualEnd = Math.min(actualEnd, nextHeadingPos);
+        }
+        
+        // Extract the block up to the actual end
+        block = rawBlock.slice(0, actualEnd).trim();
       } else {
         block = item.content;
       }
 
       let processedContent = this.processSectionContent(block, item.identifier);
       
-      // Extract title and content
+      // Extract title and content - but preserve the full section text
       let title = '';
       let content = processedContent;
       
-      // Try to extract title from the content
+      // Try to extract title from the content for metadata, but keep full text
       const titlePatterns = [
         /^(Article|Section)\s+\d+[A-Za-z]*\.?\s*([^\n.-]+)[.-]\s*([\s\S]*)/,
         /^(Article|Section)\s+\d+[A-Za-z]*\.?\s*([^\n:]+):\s*([\s\S]*)/,
@@ -405,10 +469,44 @@ class ActsParser {
         const match = content.match(pattern);
         if (match) {
           title = match[2] ? match[2].trim() : '';
-          content = match[3] ? match[3].trim() : match[2] ? match[2].trim() : content;
+          // Don't strip out the section header - keep the full content including section number
+          // Only extract title for metadata purposes
           break;
         }
       }
+      
+      // Ensure section header is preserved in content
+      // If content doesn't start with "Section N" or "Article N", prepend it
+      if (item.type === 'section' && !/^Section\s+\d+/i.test(content.trim())) {
+        content = `Section ${item.identifier}. ${content.trim()}`;
+      } else if (item.type === 'article' && !/^Article\s+\d+/i.test(content.trim())) {
+        content = `Article ${item.identifier}. ${content.trim()}`;
+      }
+      
+      // Remove cross-references and citations from other entries
+      // Remove patterns like "Article X Section Y" that appear mid-text (likely from other entries)
+      // But preserve section headers at the start
+      const lines = content.split('\n');
+      const cleanedLines = lines.map((line, idx) => {
+        // Keep the first line if it's a section header
+        if (idx === 0 && /^(Section|Article)\s+\d+/i.test(line.trim())) {
+          return line;
+        }
+        // Remove lines that look like citations from other entries
+        // Pattern: "Article X Section Y" or "Act No. X, Section Y" appearing mid-text
+        if (/^(Article\s+\d+|Act\s+No\.\s+\d+).*Section\s+\d+/i.test(line.trim()) && 
+            !line.trim().startsWith('Section') && 
+            !line.trim().startsWith('Article')) {
+          return ''; // Remove this line
+        }
+        // Remove "The Project -" artifacts
+        if (/^The Project\s*-?\s*$/i.test(line.trim())) {
+          return '';
+        }
+        return line;
+      }).filter(line => line.trim() !== '');
+      
+      content = cleanedLines.join('\n');
       
       // Pre-clean to check for weak starts
       const preClean = content
@@ -428,14 +526,14 @@ class ActsParser {
           content = `${merged} ${preClean}`.replace(/\s+/g, ' ').trim();
         }
       }
-
+      
       // Build context path for the entry
       const contextPath = item.context.map(c => c.name).join(' - ');
       
-      // Clean up content
+      // Clean up content but preserve section structure
       const cleanContent = content
-        .replace(/\n\s*\n/g, '\n')
-        .replace(/[ \t]+/g, ' ')
+        .replace(/\n{3,}/g, '\n\n') // Reduce excessive blank lines
+        .replace(/[ \t]+/g, ' ') // Normalize spaces
         .trim();
       
       // Only add if we have meaningful content
@@ -518,6 +616,41 @@ class ActsParser {
     }
     
     return sectionText;
+  }
+
+  /**
+   * Normalize month abbreviations to full month names
+   * Handles: Jan., Feb., Mar., Apr., May, Jun., Jul., Aug., Sept., Oct., Nov., Dec.
+   */
+  normalizeMonthAbbreviation(dateString) {
+    if (!dateString || dateString === 'Unknown date') {
+      return dateString;
+    }
+    
+    const monthMap = {
+      'Jan.': 'January',
+      'Feb.': 'February',
+      'Mar.': 'March',
+      'Apr.': 'April',
+      'May': 'May',
+      'Jun.': 'June',
+      'Jul.': 'July',
+      'Aug.': 'August',
+      'Sept.': 'September',
+      'Sep.': 'September',
+      'Oct.': 'October',
+      'Nov.': 'November',
+      'Dec.': 'December'
+    };
+    
+    let normalized = dateString;
+    for (const [abbr, full] of Object.entries(monthMap)) {
+      // Match abbreviation at word boundary
+      const regex = new RegExp(`\\b${abbr.replace('.', '\\.')}\\b`, 'g');
+      normalized = normalized.replace(regex, full);
+    }
+    
+    return normalized;
   }
 }
 

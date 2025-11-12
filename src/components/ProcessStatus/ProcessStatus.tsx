@@ -13,9 +13,8 @@ export const ProcessStatus: React.FC<ProcessStatusProps> = ({
   const { processes } = useBackgroundProcess();
 
   const runningProcesses = processes.filter((p: any) => p.status === 'running');
-  const completedProcesses = processes.filter((p: any) => p.status === 'completed');
 
-  if (runningProcesses.length === 0 && completedProcesses.length === 0) {
+  if (runningProcesses.length === 0) {
     return null;
   }
 
@@ -40,25 +39,7 @@ export const ProcessStatus: React.FC<ProcessStatusProps> = ({
           )}
         </div>
       ))}
-      {completedProcesses.map((process: any) => (
-        <div key={process.id} className="process-item">
-          {process.type === 'scraping' ? (
-            <span 
-              className="process-link"
-              onClick={() => onScrapingClick(process.sessionId)}
-            >
-              Scraping completed - View results
-            </span>
-          ) : (
-            <span 
-              className="process-link"
-              onClick={() => onEntryGenerationClick(process.sessionId || '')}
-            >
-              Entry Generation completed - View results
-            </span>
-          )}
-        </div>
-      ))}
+      {/* Completed processes notifications removed */}
     </div>
   );
 };

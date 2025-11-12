@@ -41,21 +41,21 @@ BEGIN
   IF EXISTS (SELECT 1 FROM pg_type WHERE typname = 'vector') THEN
     -- Create table with embedding column
     CREATE TABLE IF NOT EXISTS kb_entries (
-      entry_id text primary key,
-      type text not null,
-      title text not null,
-      canonical_citation text,
-      summary text,
-      text text,
+  entry_id text primary key,
+  type text not null,
+  title text not null,
+  canonical_citation text,
+  summary text,
+  text text,
       tags text[],
-      jurisdiction text,
-      law_family text,
-      created_by integer references users(id),
-      embedding vector(1536),
-      created_at timestamptz not null default now(),
-      updated_at timestamptz not null default now()
-    );
-    
+  jurisdiction text,
+  law_family text,
+  created_by integer references users(id),
+  embedding vector(1536),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
     -- For KNN search (only if vector extension is available)
     CREATE INDEX IF NOT EXISTS kb_entries_embedding_ivff ON kb_entries USING ivfflat (embedding vector_cosine_ops) WITH (lists = 100);
   ELSE
