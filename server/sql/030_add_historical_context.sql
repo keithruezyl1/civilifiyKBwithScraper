@@ -7,3 +7,10 @@ ALTER TABLE kb_entries ADD COLUMN IF NOT EXISTS historical_context TEXT;
 -- Add comment for documentation
 COMMENT ON COLUMN kb_entries.historical_context IS 'One-line note about historical applicability for pre-1946 Acts (e.g., "Pre-Commonwealth statute; may be repealed or superseded"). Optional for post-1946 Acts.';
 
+
+
+
+
+
+
+

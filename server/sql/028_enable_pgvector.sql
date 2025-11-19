@@ -16,3 +16,10 @@ CREATE INDEX IF NOT EXISTS kb_entries_embedding_ivff
 
 
 
+
+
+
+
+
+
+
