@@ -34,3 +34,5 @@ COMMENT ON COLUMN kb_entries.subtype_fields IS 'Subtype-specific fields stored a
 
 
 
+
+
